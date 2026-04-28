@@ -1,0 +1,47 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Cobertura de testes
+coverage/
+.vitest-cache/
+
+# Variáveis de ambiente
+.env
+
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+src/generated/
+
+# Redis
+dump.rdb
+
+# Arquivos temporários
+uploads/
+tmp/
+temp/
+
+# Claude Code
+.claude/
