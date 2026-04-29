@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: splittr
       POSTGRES_PASSWORD: splittr
-      POSTGRES_DB: splittr
+      POSTGRES_DB: splittr_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

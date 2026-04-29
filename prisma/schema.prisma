@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  MEMBER
+}
+
+enum SettlementStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  pixKey       String?
+  createdAt    DateTime  @default(now())
+  members      Member[]
+  paidExpenses Expense[] @relation("ExpensePayer")
+}
+
+model Group {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  currency    String       @default("BRL")
+  createdAt   DateTime     @default(now())
+  members     Member[]
+  expenses    Expense[]
+  settlements Settlement[]
+}
+
+model Member {
+  id              String         @id @default(uuid())
+  userId          String
+  groupId         String
+  role            Role           @default(MEMBER)
+  joinedAt        DateTime       @default(now())
+  user            User           @relation(fields: [userId], references: [id])
+  group           Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  shares          ExpenseShare[]
+  settlementsFrom Settlement[]   @relation("SettlementFrom")
+  settlementsTo   Settlement[]   @relation("SettlementTo")
+
+  @@unique([userId, groupId])
+}
+
+model Expense {
+  id          String         @id @default(uuid())
+  groupId     String
+  payerId     String
+  description String
+  amount      Decimal        @db.Decimal(10, 2)
+  category    String? // preenchido por regra ou LLM
+  occurredAt  DateTime
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  group       Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer       User           @relation("ExpensePayer", fields: [payerId], references: [id])
+  shares      ExpenseShare[]
+
+  @@index([groupId, occurredAt])
+}
+
+model ExpenseShare {
+  id        String  @id @default(uuid())
+  expenseId String
+  memberId  String
+  amount    Decimal @db.Decimal(10, 2)
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  member    Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, memberId])
+}
+
+model Settlement {
+  id           String           @id @default(uuid())
+  groupId      String
+  fromMemberId String
+  toMemberId   String
+  amount       Decimal          @db.Decimal(10, 2)
+  status       SettlementStatus @default(PENDING)
+  pixCopyPaste String? // gerado quando criado
+  confirmedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  group        Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromMember   Member           @relation("SettlementFrom", fields: [fromMemberId], references: [id])
+  toMember     Member           @relation("SettlementTo", fields: [toMemberId], references: [id])
+}

@@ -1,0 +1,48 @@
+import Decimal from 'decimal.js'
+
+// in this class i have to deny negative numbers and inaccurate numbers
+export class Money {
+
+    private readonly value: Decimal
+
+    constructor (amount: number | string | Decimal) {
+        const decimal = new Decimal(amount)
+        if (decimal.isNegative()) {
+            throw new Error ('The value cant to be negative')
+        }
+        this.value = decimal.toDecimalPlaces(2)
+    }
+    
+    add (other: Money): Money {
+        return new Money(this.value.plus(other.value))
+    }
+
+    subtract (other: Money): Money {
+        return new Money(this.value.sub(other.value))
+    }
+
+    divide (other: Money): Money {
+        return new Money(this.value.dividedBy(other.value).toDecimalPlaces(2))
+    }
+
+    equals (other: Money): Boolean {
+        return this.value.equals(other.value)
+    }
+
+    isGreaterThan (other: Money): Boolean {
+        return this.value.greaterThan(other.value)
+    }
+
+    toNumber(): number {
+        return this.value.toNumber()
+    }
+
+    toString(): string {
+        return this.value.toFixed(2)
+    }
+
+    toDecimal(): Decimal {
+        return this.value
+    }
+
+}

@@ -45,3 +45,7 @@ temp/
 
 # Claude Code
 .claude/
+
+/src/generated/prisma
+
+/src/generated/prisma
