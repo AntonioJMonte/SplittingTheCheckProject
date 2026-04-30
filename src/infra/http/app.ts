@@ -1,40 +1,37 @@
 import fastify from 'fastify'
-import cors from '@fastify/cors'
-import jwt from '@fastify/jwt'
-import swagger from '@fastify/swagger'
-import swaggerUi from '@fastify/swagger-ui'
-import { env } from '../env/index.js'
+import fastifyJwt from '@fastify/jwt'
+import fastifyCookie from '@fastify/cookie'
+import { ZodError } from 'zod'
+import { env } from '../env'
+import { userRoutes } from './routes/userRoutes'
 
-export function buildApp() {
-  const app = fastify({
-    logger: {
-      transport:
-        env.NODE_ENV === 'development'
-          ? { target: 'pino-pretty', options: { colorize: true } }
-          : undefined,
+export const app = fastify()
+
+app.register(fastifyJwt, {
+    secret: env.JWT_SECRET,
+    cookie: {
+      cookieName: 'refreshToken',
+      signed: false,
+    },
+    sign: {
+      expiresIn: env.JWT_EXPIRES_IN,
     },
   })
 
-  app.register(cors, { origin: true })
+  app.register(fastifyCookie)
 
-  app.register(jwt, { secret: env.JWT_SECRET })
+  app.register(userRoutes)
 
-  app.register(swagger, {
-    openapi: {
-      info: {
-        title: 'Rachamento de Contas API',
-        description: 'API para grupos compartilharem despesas',
-        version: '1.0.0',
-      },
-      components: {
-        securitySchemes: {
-          bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
-        },
-      },
-    },
-  })
+  app.setErrorHandler((error, _, reply) => {
+    if (error instanceof ZodError) {
+      return reply
+        .status(400)
+        .send({ message: 'Validation error.', issues: error.issues })
+    }
 
-  app.register(swaggerUi, { routePrefix: '/docs' })
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(error)
+    }
 
-  return app
-}
+    return reply.status(500).send({ message: 'Internal server error.' })
+})

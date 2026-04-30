@@ -1,7 +1,5 @@
-import { buildApp } from './infra/http/app.js'
-import { env } from './infra/env/index.js'
-
-const app = buildApp()
+import { app } from './infra/http/app'
+import { env } from './infra/env'
 
 async function start() {
   try {
