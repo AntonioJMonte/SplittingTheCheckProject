@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
+import { JsonWebTokenError } from 'jsonwebtoken'
 import { authService } from '../services/authService'
 import { PrismaUserRepository } from '../../database/prisma/prismaUserRepository'
 import { InvalidCredentialsError } from '../../../shared/errors/invalid-credentials-error'
@@ -19,8 +20,8 @@ export async function refreshToken(request: FastifyRequest, reply: FastifyReply)
         const accessToken = await reply.jwtSign({ sub: user.id })
         return reply.status(200).send({ accessToken })
     } catch (error) {
-        if (error instanceof InvalidCredentialsError) {
-            return reply.status(401).send({ message: error.message })
+        if (error instanceof InvalidCredentialsError || error instanceof JsonWebTokenError) {
+            return reply.status(401).send({ message: 'Refresh token inválido' })
         }
         throw error
     }

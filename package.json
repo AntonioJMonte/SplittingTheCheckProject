@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "vitest run",
+    "test:unit": "vitest run src/tests/unit",
+    "test:e2e": "vitest run src/tests/e2e",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "db:migrate": "prisma migrate dev",
