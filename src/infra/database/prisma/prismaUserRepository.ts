@@ -1,18 +1,31 @@
-import { Prisma, User } from "@prisma/client";
-import { UserRepository } from "../../../application/repositories/user-repository";
+import { prisma } from './prismaClient'
+import { User } from '../../../domain/entities/user'
+import { Email } from '../../../domain/value-objects/email'
+import { UserRepository } from '../../../application/repositories/users-repository'
 
-export class PrismaUserRepository implements UserRepository{
+export class PrismaUserRepository implements UserRepository {
 
-    
-    create(data: Prisma.UserCreateInput): Promise<User> {
-        throw new Error("Method not implemented.");
+    async create(data: User): Promise<void> {
+        await prisma.user.create({
+            data: {
+                id: data.id,
+                name: data.name,
+                email: data.email.value,
+                passwordHash: data.passwordHash,
+                pixKey: data.pixKey,
+            },
+        })
     }
-    findByEmail(email: string): Promise<User> {
-        throw new Error("Method not implemented.");
-    }
-    findById(id: string): Promise<User> {
-        throw new Error("Method not implemented.");
+
+    async findByEmail(email: string): Promise<User | null> {
+        const row = await prisma.user.findUnique({ where: { email } })
+        if (!row) return null
+        return new User(row.id, row.name, new Email(row.email), row.passwordHash, row.pixKey ?? undefined)
     }
 
-
+    async findById(id: string): Promise<User | null> {
+        const row = await prisma.user.findUnique({ where: { id } })
+        if (!row) return null
+        return new User(row.id, row.name, new Email(row.email), row.passwordHash, row.pixKey ?? undefined)
+    }
 }

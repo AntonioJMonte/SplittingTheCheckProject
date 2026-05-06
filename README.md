@@ -150,11 +150,11 @@ Documentação detalhada da arquitetura no arquivo [`docs/ARCHITECTURE.md`](docs
 > Este projeto está em desenvolvimento ativo como parte do meu portfólio. O roadmap abaixo é executado em fases iterativas.
 
 ### Fase 1 — Fundação e Domínio
-- [ ] Setup do projeto (TypeScript, Fastify, Prisma, Postgres em Docker)
-- [ ] Schema Prisma (User, Group, Member, Expense, ExpenseShare, Settlement)
-- [ ] Entidades de domínio + value objects (Money, Email)
-- [ ] Use cases de autenticação (register, login, refresh)
-- [ ] Testes unitários da camada de domínio
+- [x] Setup do projeto (TypeScript, Fastify, Prisma, Postgres em Docker)
+- [x] Schema Prisma (User, Group, Member, Expense, ExpenseShare, Settlement)
+- [x] Entidades de domínio + value objects (Money, Email)
+- [x] Use cases de autenticação (register, login, refresh)
+- [x] Testes unitários da camada de domínio
 
 ### Fase 2 — Grupos e Despesas
 - [ ] Use cases de grupos (criar, listar, adicionar membro)

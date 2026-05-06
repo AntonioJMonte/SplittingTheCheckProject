@@ -4,7 +4,7 @@ import { PrismaUserRepository } from "../../infra/database/prisma/prismaUserRepo
 
 export function makeAuthUserUseCase () {
     const prismaUserRepository = new PrismaUserRepository()
-    const registerUseCase = new AuthUserUseCase(prismaUserRepository)
+    const authUseCase = new AuthUserUseCase(prismaUserRepository)
 
-    return registerUseCase
+    return authUseCase
 }

@@ -1,20 +1,32 @@
+import { randomUUID } from "node:crypto"
+
 
 export class Member {
 
     constructor (
+        public readonly id: string,
         public readonly userId: string,
         public readonly groupId: string,
         public readonly role: 'OWNER' | 'MEMBER',
         public readonly joinedAt: Date
-        
     ) {}
 
-    static create(prop: {userId: string, groupId: string}) {
-
+    static create(props: { userId: string; groupId: string }) {
         return new Member(
-            prop.userId,
-            prop.groupId,
-            "MEMBER",
+            randomUUID(),
+            props.userId,
+            props.groupId,
+            'MEMBER',
+            new Date()
+        )
+    }
+
+    static createOwner(props: { userId: string; groupId: string }) {
+        return new Member(
+            randomUUID(),
+            props.userId,
+            props.groupId,
+            'OWNER',
             new Date()
         )
     }
@@ -22,9 +34,5 @@ export class Member {
     isOwner(): boolean {
         return this.role === 'OWNER'
     }
-    
-    canRemove(target: Member): boolean {
-        return this.isOwner() && target.userId != this.userId
-    }
-
 }
+

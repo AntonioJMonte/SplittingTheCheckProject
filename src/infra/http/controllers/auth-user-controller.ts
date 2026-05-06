@@ -7,9 +7,9 @@ import { makeAuthUserUseCase } from '../../factories/make-auth-user-use-case'
 const authUserBodySchema = z.object({
     email: z.email(),
     password: z.string().min(6),
-    })
+})
 
-    export async function authUser(request: FastifyRequest, reply: FastifyReply) {
+export async function authUser(request: FastifyRequest, reply: FastifyReply) {
     const { email, password } = authUserBodySchema.parse(request.body)
 
     try {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { DomainError } from "../../shared/errors/domain-error";
 import { Email } from "../value-objects/email";
 
@@ -12,19 +13,16 @@ export class User {
         public readonly pixKey?: string
     ) {}
 
-    
-    static create(prop: { name: string, email: string, passwordHash: string}) {
-
-        // the name field cant be empty
-        if (!prop.name.trim()) {
-            throw new DomainError('The name field cant be empty')
+    static create(props: { name: string; email: string; passwordHash: string }) {
+        if (!props.name.trim()) {
+            throw new DomainError('O nome não pode ser vazio')
         }
 
-        return new User (
-            crypto.randomUUID(),
-            prop.name,
-            new Email(prop.email),
-            prop.passwordHash,
+        return new User(
+            randomUUID(),
+            props.name.trim(),
+            new Email(props.email),
+            props.passwordHash,
         )
     }
 

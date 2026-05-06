@@ -1,6 +1,6 @@
 import Decimal from 'decimal.js'
+import { DomainError } from '../../shared/errors/domain-error'
 
-// in this class i have to deny negative numbers and inaccurate numbers
 export class Money {
 
     private readonly value: Decimal
@@ -8,7 +8,7 @@ export class Money {
     constructor (amount: number | string | Decimal) {
         const decimal = new Decimal(amount)
         if (decimal.isNegative()) {
-            throw new Error ('The value cant to be negative')
+            throw new DomainError('O valor monetário não pode ser negativo')
         }
         this.value = decimal.toDecimalPlaces(2)
     }

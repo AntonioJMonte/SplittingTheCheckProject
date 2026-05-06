@@ -21,7 +21,7 @@ describe('RegisterUserUseCase', () => {
 
     expect(user.id).toBeDefined()
     expect(user.name).toBe('John Doe')
-    expect(user.email).toBe('john@example.com')
+    expect(user.email.value).toBe('john@example.com')
   })
 
   it('should hash the password before storing', async () => {
@@ -32,6 +32,16 @@ describe('RegisterUserUseCase', () => {
     })
 
     expect(user.passwordHash).not.toBe('password123')
+  })
+
+  it('should throw DomainError when email is invalid', async () => {
+    await expect(
+      sut.execute({
+        name: 'John Doe',
+        email: 'not-an-email',
+        password: 'password123',
+      }),
+    ).rejects.toThrow()
   })
 
   it('should throw UserAlreadyExistError when email is already taken', async () => {

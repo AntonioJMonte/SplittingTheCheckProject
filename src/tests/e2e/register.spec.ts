@@ -3,28 +3,10 @@ import { app } from '../../infra/http/app'
 
 const mockStore = vi.hoisted(() => ({ items: [] as any[] }))
 
-vi.mock('../../infra/database/prisma/prismaUserRepository', () => ({
-  PrismaUserRepository: class {
-    async create(data: any) {
-      const user = {
-        id: Math.random().toString(36).slice(2),
-        name: data.name,
-        email: data.email,
-        passwordHash: data.passwordHash,
-        pixKey: null,
-        createdAt: new Date(),
-      }
-      mockStore.items.push(user)
-      return user
-    }
-    async findByEmail(email: string) {
-      return mockStore.items.find((u: any) => u.email === email) ?? null
-    }
-    async findById(id: string) {
-      return mockStore.items.find((u: any) => u.id === id) ?? null
-    }
-  },
-}))
+vi.mock('../../infra/database/prisma/prismaUserRepository', async () => {
+    const { makePrismaUserRepositoryMock } = await import('../helpers/make-prisma-user-repository-mock')
+    return makePrismaUserRepositoryMock(mockStore)
+})
 
 describe('POST /register', () => {
   beforeEach(() => {
