@@ -16,6 +16,7 @@ export class Settlement {
         public readonly amount: Money,
         status: SettlementStatus = 'PENDING',
         confirmedAt?: Date,
+        public readonly pixCopyPaste?: string,
     ) {
         this._status = status
         this._confirmedAt = confirmedAt
@@ -34,6 +35,7 @@ export class Settlement {
         fromMemberId: string
         toMemberId: string
         amount: Money
+        pixCopyPaste?: string
     }) {
         return new Settlement(
             randomUUID(),
@@ -41,6 +43,9 @@ export class Settlement {
             props.fromMemberId,
             props.toMemberId,
             props.amount,
+            'PENDING',
+            undefined,
+            props.pixCopyPaste,
         )
     }
 

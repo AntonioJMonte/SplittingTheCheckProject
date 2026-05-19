@@ -1,6 +1,6 @@
 import { User } from '../../../domain/entities/user'
 import { InvalidCredentialsError } from '../../../shared/errors/invalid-credentials-error'
-import { UserRepository } from '../../repositories/user-repository'
+import { UserRepository } from '../../repositories/users-repository'
 
 interface RefreshTokenUseCaseRequest {
     userId: string

@@ -7,13 +7,12 @@ import { AppError } from '../../../shared/errors/app-error'
 import { GroupNotFoundError } from '../../../shared/errors/group-not-found-error'
 import { MemberHasPendingBalanceError } from '../../../shared/errors/member-has-pending-balance-error'
 
-interface RemoveMemberUseCaseRequest {
+interface LeaveGroupUseCaseRequest {
     groupId: string
-    requestedByUserId: string
-    targetUserId: string
+    requestingUserId: string
 }
 
-export class RemoveMemberUseCase {
+export class LeaveGroupUseCase {
 
     constructor(
         private groupRepository: GroupRepository,
@@ -22,39 +21,38 @@ export class RemoveMemberUseCase {
         private settlementRepository: SettlementRepository,
     ) {}
 
-    async execute({ groupId, requestedByUserId, targetUserId }: RemoveMemberUseCaseRequest): Promise<void> {
+    async execute({ groupId, requestingUserId }: LeaveGroupUseCaseRequest): Promise<void> {
         const group = await this.groupRepository.findById(groupId)
         if (!group) {
             throw new GroupNotFoundError()
         }
 
-        const requestedBy = await this.memberRepository.findByUserAndGroup(requestedByUserId, groupId)
-        if (!requestedBy) {
-            throw new AppError('Sem permissão', 403)
+        const member = group.members.find(m => m.userId === requestingUserId)
+        if (!member) {
+            throw new AppError('Você não é membro deste grupo', 403)
         }
 
-        const targetMember = await this.memberRepository.findByUserAndGroup(targetUserId, groupId)
-        if (!targetMember) {
-            throw new AppError('Usuário alvo não é membro deste grupo', 404)
+        if (!group.canLeave(member.id)) {
+            throw new AppError('Você precisa definir um novo owner antes de sair', 400)
         }
 
         const [expenses, settlements] = await Promise.all([
             this.expenseRepository.findByGroupId(groupId),
-            this.settlementRepository.findConfirmedByMemberAndGroup(targetMember.id, groupId),
+            this.settlementRepository.findConfirmedByMemberAndGroup(member.id, groupId),
         ])
 
         let balance = new Decimal(0)
         for (const expense of expenses) {
-            if (expense.payerId === targetMember.userId) {
+            if (expense.payerId === member.userId) {
                 balance = balance.plus(expense.amount.toDecimal())
             }
-            const share = expense.shares.find(s => s.memberId === targetMember.id)
+            const share = expense.shares.find(s => s.memberId === member.id)
             if (share) {
                 balance = balance.minus(share.amount.toDecimal())
             }
         }
         for (const settlement of settlements) {
-            if (settlement.fromMemberId === targetMember.id) {
+            if (settlement.fromMemberId === member.id) {
                 balance = balance.plus(settlement.amount.toDecimal())
             } else {
                 balance = balance.minus(settlement.amount.toDecimal())
@@ -65,7 +63,11 @@ export class RemoveMemberUseCase {
             throw new MemberHasPendingBalanceError()
         }
 
-        group.removeMember(requestedBy, targetUserId)
-        await this.memberRepository.removeMemberGroup(targetMember.id)
+        const isLastMember = group.members.length === 1
+        await this.memberRepository.removeMemberGroup(member.id)
+
+        if (isLastMember) {
+            await this.groupRepository.delete(groupId)
+        }
     }
 }

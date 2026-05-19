@@ -3,6 +3,7 @@ import { Group } from "../../../domain/entities/group";
 import { Member } from "../../../domain/entities/member";
 import { MemberRepository } from "../../repositories/member-repository";
 import { AppError } from "../../../shared/errors/app-error";
+import { GroupNotFoundError } from "../../../shared/errors/group-not-found-error";
 
 interface AddMemberUseCaseRequest {
     groupId: string
@@ -25,7 +26,7 @@ export class AddMemberUseCase {
 
         const group = await this.groupRepository.findById(groupId)
         if (!group) {
-            throw new AppError('Grupo não encontrado', 404)
+            throw new GroupNotFoundError()
         }
 
         const requestedBy = await this.memberRepository.findByUserAndGroup(requestedByUserId, groupId)

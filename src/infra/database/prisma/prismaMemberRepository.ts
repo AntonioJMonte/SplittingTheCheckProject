@@ -1,4 +1,4 @@
-import { MemberRepository } from '../../../application/repositories/member-repository'
+import { MemberRepository, MembersWithUser } from '../../../application/repositories/member-repository'
 import { Member } from '../../../domain/entities/member'
 import { prisma } from './prismaClient'
 
@@ -41,5 +41,32 @@ export class PrismaMemberRepository implements MemberRepository {
 
     async removeMemberGroup(memberId: string): Promise<void> {
         await prisma.member.delete({ where: { id: memberId } })
+    }
+
+    async updateRole(memberId: string, role: 'OWNER' | 'MEMBER'): Promise<void> {
+        await prisma.member.update({
+            where: { id: memberId },
+            data: { role },
+        })
+    }
+
+    async findByGroupIdWithUser(groupId: string): Promise<MembersWithUser[]> {
+        const rows = await prisma.member.findMany({
+            where: { groupId },
+            include: {
+                user: {
+                    select: { name: true, email: true },
+                },
+            },
+            orderBy: { joinedAt: 'asc' },
+        })
+
+        return rows.map(row => ({
+            id: row.id,
+            role: row.role as 'OWNER' | 'MEMBER',
+            joinedAt: row.joinedAt,
+            name: row.user.name,
+            email: row.user.email
+        }))
     }
 }

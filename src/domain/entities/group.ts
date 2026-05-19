@@ -91,9 +91,53 @@ export class Group {
         )
     }
 
+    canLeave(memberId: string): boolean {
+        const member = this._members.find(m => m.id === memberId)
+        if (!member) {
+            throw new DomainError('Membro não encontrado no grupo')
+        }
+
+        if (!member.isOwner()) return true
+
+        const hasOtherOwner = this._members.some(m => m.id !== memberId && m.isOwner())
+        if (hasOtherOwner) return true
+
+        const hasOtherMembers = this._members.some(m => m.id !== memberId)
+        return !hasOtherMembers
+    }
+
+    updateMemberRole(memberId: string, newRole: 'OWNER' | 'MEMBER'): void {
+        const index = this._members.findIndex(m => m.id === memberId)
+        if (index === -1) {
+            throw new DomainError('Membro não encontrado no grupo')
+        }
+
+        const member = this._members[index]
+        if (member.isOwner() && newRole === 'MEMBER') {
+            const hasOtherOwner = this._members.some(m => m.id !== memberId && m.isOwner())
+            if (!hasOtherOwner) {
+                throw new DomainError('Não é possível remover a role de owner do único dono do grupo')
+            }
+        }
+
+        this._members[index] = new Member(member.id, member.userId, member.groupId, newRole, member.joinedAt)
+    }
+
+    listMembers(requestedBy: Member): ReadonlyArray<Member> {
+        const isMember = this._members.some(m => m.userId === requestedBy.userId)
+        if (!isMember) {
+            throw new DomainError('Apenas membros do grupo podem visualizar a lista de membros')
+        }
+        return this._members
+    }
+
     getOwner(): Member {
         const owner = this._members.find(m => m.isOwner())
-        if (!owner) throw new DomainError('Grupo sem dono — estado inválido')
+        if (!owner) {
+            throw new DomainError('Grupo sem dono — estado inválido')
+        }
         return owner
     }
+
+
 }

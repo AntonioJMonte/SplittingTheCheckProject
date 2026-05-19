@@ -4,6 +4,7 @@ import { MemberRepository } from '../../repositories/member-repository'
 import { ExpenseRepository } from '../../repositories/expense-repository'
 import { DebtMinimizer, TransferSuggestion } from '../../../domain/services/debt-minimizer'
 import { AppError } from '../../../shared/errors/app-error'
+import { GroupNotFoundError } from '../../../shared/errors/group-not-found-error'
 
 interface GetGroupBalancesUseCaseRequest {
     groupId: string
@@ -32,7 +33,7 @@ export class GetGroupBalancesUseCase {
     async execute({ groupId, requestingUserId }: GetGroupBalancesUseCaseRequest): Promise<GetGroupBalancesUseCaseResponse> {
         const group = await this.groupRepository.findById(groupId)
         if (!group) {
-            throw new AppError('Grupo não encontrado', 404)
+            throw new GroupNotFoundError()
         }
 
         const requestingMember = await this.memberRepository.findByUserAndGroup(requestingUserId, groupId)

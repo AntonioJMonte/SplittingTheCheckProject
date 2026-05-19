@@ -1,6 +1,7 @@
 import { GroupRepository } from '../../repositories/group-repository'
 import { MemberRepository } from '../../repositories/member-repository'
 import { AppError } from '../../../shared/errors/app-error'
+import { GroupNotFoundError } from '../../../shared/errors/group-not-found-error'
 
 interface DeleteGroupUseCaseRequest {
     groupId: string
@@ -17,7 +18,7 @@ export class DeleteGroupUseCase {
     async execute({ groupId, requestingUserId }: DeleteGroupUseCaseRequest): Promise<void> {
         const group = await this.groupRepository.findById(groupId)
         if (!group) {
-            throw new AppError('Grupo não encontrado', 404)
+            throw new GroupNotFoundError()
         }
 
         const requestingMember = await this.memberRepository.findByUserAndGroup(requestingUserId, groupId)
