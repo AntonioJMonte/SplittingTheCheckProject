@@ -28,4 +28,8 @@ export class PrismaUserRepository implements UserRepository {
         if (!row) return null
         return new User(row.id, row.name, new Email(row.email), row.passwordHash, row.pixKey ?? undefined)
     }
+
+    async updatePixKey(userId: string, pixKey: string | null): Promise<void> {
+        await prisma.user.update({ where: { id: userId }, data: { pixKey } })
+    }
 }

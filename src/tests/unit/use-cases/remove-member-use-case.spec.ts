@@ -40,14 +40,14 @@ describe('RemoveMemberUseCase', () => {
   it('should remove a member with zero balance', async () => {
     const { group, owner, member2 } = await makeGroupWithTwoMembers()
 
-    await sut.execute({ groupId: group.id, requestedByUserId: owner.userId, targetUserId: member2.userId })
+    await sut.execute({ groupId: group.id, requestedByUserId: owner.userId, targetMemberId: member2.id })
 
     expect(memberRepository.items.find(m => m.id === member2.id)).toBeUndefined()
   })
 
   it('should throw GroupNotFoundError when group does not exist', async () => {
     await expect(
-      sut.execute({ groupId: 'nonexistent', requestedByUserId: 'user-1', targetUserId: 'user-2' }),
+      sut.execute({ groupId: 'nonexistent', requestedByUserId: 'user-1', targetMemberId: 'member-2-id' }),
     ).rejects.toBeInstanceOf(GroupNotFoundError)
   })
 
@@ -55,22 +55,21 @@ describe('RemoveMemberUseCase', () => {
     const { group, member2 } = await makeGroupWithTwoMembers()
 
     await expect(
-      sut.execute({ groupId: group.id, requestedByUserId: 'stranger', targetUserId: member2.userId }),
+      sut.execute({ groupId: group.id, requestedByUserId: 'stranger', targetMemberId: member2.id }),
     ).rejects.toBeInstanceOf(AppError)
   })
 
-  it('should throw AppError when target user is not a member', async () => {
+  it('should throw AppError when target member does not exist', async () => {
     const { group, owner } = await makeGroupWithTwoMembers()
 
     await expect(
-      sut.execute({ groupId: group.id, requestedByUserId: owner.userId, targetUserId: 'nonexistent-user' }),
+      sut.execute({ groupId: group.id, requestedByUserId: owner.userId, targetMemberId: 'nonexistent-member-id' }),
     ).rejects.toBeInstanceOf(AppError)
   })
 
   it('should throw MemberHasPendingBalanceError when target has an outstanding balance', async () => {
     const { group, owner, member2 } = await makeGroupWithTwoMembers()
 
-    // member2 owes 30 (owner paid 60, member2 share is 30)
     const expense = Expense.create({
       groupId: group.id,
       payerId: owner.userId,
@@ -85,16 +84,15 @@ describe('RemoveMemberUseCase', () => {
     await expenseRepository.create(expense)
 
     await expect(
-      sut.execute({ groupId: group.id, requestedByUserId: owner.userId, targetUserId: member2.userId }),
+      sut.execute({ groupId: group.id, requestedByUserId: owner.userId, targetMemberId: member2.id }),
     ).rejects.toBeInstanceOf(MemberHasPendingBalanceError)
   })
 
   it('should throw DomainError when requester is not the owner', async () => {
-    const { group, member2 } = await makeGroupWithTwoMembers()
+    const { group, owner, member2 } = await makeGroupWithTwoMembers()
 
-    // member2 tries to remove someone else - they're not owner
     await expect(
-      sut.execute({ groupId: group.id, requestedByUserId: member2.userId, targetUserId: 'owner-user' }),
+      sut.execute({ groupId: group.id, requestedByUserId: member2.userId, targetMemberId: owner.id }),
     ).rejects.toThrow()
   })
 })

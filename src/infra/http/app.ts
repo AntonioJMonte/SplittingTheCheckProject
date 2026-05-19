@@ -4,8 +4,12 @@ import fastifyCookie from '@fastify/cookie'
 import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
 import { ZodError } from 'zod'
+import { DomainError } from '../../shared/errors/domain-error'
 import { env } from '../env'
 import { userRoutes } from './routes/userRoutes'
+import { groupRoutes } from './routes/groupRoutes'
+import { expenseRoutes } from './routes/expenseRoutes'
+import { settlementRoutes } from './routes/settlementRoutes'
 
 export const app = fastify({
   ajv: {
@@ -68,12 +72,19 @@ app.register(fastifyJwt, {
 app.register(fastifyCookie)
 
 app.register(userRoutes)
+app.register(groupRoutes)
+app.register(expenseRoutes)
+app.register(settlementRoutes)
 
 app.setErrorHandler((error, _, reply) => {
   if (error instanceof ZodError) {
     return reply
       .status(400)
       .send({ message: 'Validation error.', issues: error.issues })
+  }
+
+  if (error instanceof DomainError) {
+    return reply.status(400).send({ message: error.message })
   }
 
   const err = error as { statusCode?: number; message?: string }

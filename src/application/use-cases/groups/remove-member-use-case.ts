@@ -10,7 +10,7 @@ import { MemberHasPendingBalanceError } from '../../../shared/errors/member-has-
 interface RemoveMemberUseCaseRequest {
     groupId: string
     requestedByUserId: string
-    targetUserId: string
+    targetMemberId: string
 }
 
 export class RemoveMemberUseCase {
@@ -22,7 +22,7 @@ export class RemoveMemberUseCase {
         private settlementRepository: SettlementRepository,
     ) {}
 
-    async execute({ groupId, requestedByUserId, targetUserId }: RemoveMemberUseCaseRequest): Promise<void> {
+    async execute({ groupId, requestedByUserId, targetMemberId }: RemoveMemberUseCaseRequest): Promise<void> {
         const group = await this.groupRepository.findById(groupId)
         if (!group) {
             throw new GroupNotFoundError()
@@ -33,8 +33,8 @@ export class RemoveMemberUseCase {
             throw new AppError('Sem permissão', 403)
         }
 
-        const targetMember = await this.memberRepository.findByUserAndGroup(targetUserId, groupId)
-        if (!targetMember) {
+        const targetMember = await this.memberRepository.findById(targetMemberId)
+        if (!targetMember || targetMember.groupId !== groupId) {
             throw new AppError('Usuário alvo não é membro deste grupo', 404)
         }
 
@@ -65,7 +65,7 @@ export class RemoveMemberUseCase {
             throw new MemberHasPendingBalanceError()
         }
 
-        group.removeMember(requestedBy, targetUserId)
+        group.removeMember(requestedBy, targetMember.userId)
         await this.memberRepository.removeMemberGroup(targetMember.id)
     }
 }
