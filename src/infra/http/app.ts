@@ -3,6 +3,7 @@ import fastifyJwt from '@fastify/jwt'
 import fastifyCookie from '@fastify/cookie'
 import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
+import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from '@fastify/type-provider-zod'
 import { ZodError } from 'zod'
 import { DomainError } from '../../shared/errors/domain-error'
 import { env } from '../env'
@@ -11,12 +12,19 @@ import { groupRoutes } from './routes/groupRoutes'
 import { expenseRoutes } from './routes/expenseRoutes'
 import { settlementRoutes } from './routes/settlementRoutes'
 
-export const app = fastify({
-  ajv: {
-    customOptions: {
-      strict: false,
-    },
-  },
+export const app = fastify()
+
+app.setValidatorCompiler(validatorCompiler)
+app.setSerializerCompiler(serializerCompiler)
+
+// @fastify/type-provider-zod passes ZodError as `errors`; the default Fastify formatter
+// tries to access `.schemaPath` (an AJV concept) on Zod issues and throws. Override it
+// to produce a plain Error with statusCode 400 so the error handler can handle it.
+app.setSchemaErrorFormatter((errors, dataVar) => {
+  const err = new Error(`Request ${dataVar} validation failed`) as Error & { statusCode: number; validation: unknown }
+  err.statusCode = 400
+  err.validation = errors
+  return err
 })
 
 app.register(fastifySwagger, {
@@ -42,11 +50,13 @@ app.register(fastifySwagger, {
     },
     tags: [
       { name: 'Auth', description: 'Registro, login e renovação de token' },
+      { name: 'Users', description: 'Perfil e configurações do usuário' },
       { name: 'Groups', description: 'Gerenciamento de grupos e membros' },
       { name: 'Expenses', description: 'Lançamento e consulta de despesas' },
       { name: 'Settlements', description: 'Cálculo e confirmação de acertos' },
     ],
   },
+  transform: jsonSchemaTransform,
 })
 
 app.register(fastifySwaggerUi, {

@@ -1,11 +1,20 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { groupIdParam } from '../schemas/group.schema'
-import { addMemberBody } from '../schemas/member.schema'
+import type z from 'zod'
 import { makeAddMemberUseCase } from '../../factories/make-add-member-use-case'
+import type { groupIdParam } from '../schemas/group.schema'
+import type { addMemberBody } from '../schemas/member.schema'
+import { io } from '../../websocket/io'
+import { emitMemberAdded } from '../../websocket/handlers/member-events'
 
-export async function addMember(request: FastifyRequest, reply: FastifyReply) {
-    const { groupId } = groupIdParam.parse(request.params)
-    const { userId } = addMemberBody.parse(request.body)
+type AddMemberParams = z.infer<typeof groupIdParam>
+type AddMemberBody = z.infer<typeof addMemberBody>
+
+export async function addMember(
+    request: FastifyRequest<{ Params: AddMemberParams; Body: AddMemberBody }>,
+    reply: FastifyReply,
+) {
+    const { groupId } = request.params
+    const { userId } = request.body
 
     const useCase = makeAddMemberUseCase()
     const { newMember } = await useCase.execute({
@@ -14,13 +23,17 @@ export async function addMember(request: FastifyRequest, reply: FastifyReply) {
         newUserId: userId,
     })
 
-    return reply.status(201).send({
-        member: {
-            id: newMember.id,
-            userId: newMember.userId,
-            groupId: newMember.groupId,
-            role: newMember.role,
-            joinedAt: newMember.joinedAt,
-        },
-    })
+    const memberPayload = {
+        id: newMember.id,
+        userId: newMember.userId,
+        groupId: newMember.groupId,
+        role: newMember.role,
+        joinedAt: newMember.joinedAt,
+    }
+
+    if (io) {
+        emitMemberAdded(io, groupId, memberPayload).catch(() => {})
+    }
+
+    return reply.status(201).send({ member: memberPayload })
 }

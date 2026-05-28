@@ -1,12 +1,18 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { groupIdParam } from '../schemas/group.schema'
-import { memberIdParam, updateMemberRoleBody } from '../schemas/member.schema'
+import type z from 'zod'
 import { makeUpdateMemberRoleUseCase } from '../../factories/make-update-member-role-use-case'
+import type { groupIdParam } from '../schemas/group.schema'
+import type { memberIdParam, updateMemberRoleBody } from '../schemas/member.schema'
 
-export async function updateMemberRole(request: FastifyRequest, reply: FastifyReply) {
-    const { groupId } = groupIdParam.parse(request.params)
-    const { memberId } = memberIdParam.parse(request.params)
-    const { newRole } = updateMemberRoleBody.parse(request.body)
+type UpdateMemberRoleParams = z.infer<typeof groupIdParam> & z.infer<typeof memberIdParam>
+type UpdateMemberRoleBody = z.infer<typeof updateMemberRoleBody>
+
+export async function updateMemberRole(
+    request: FastifyRequest<{ Params: UpdateMemberRoleParams; Body: UpdateMemberRoleBody }>,
+    reply: FastifyReply,
+) {
+    const { groupId, memberId } = request.params
+    const { newRole } = request.body
 
     const useCase = makeUpdateMemberRoleUseCase()
     await useCase.execute({

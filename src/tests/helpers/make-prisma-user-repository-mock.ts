@@ -10,6 +10,10 @@ export function makePrismaUserRepositoryMock(store: { items: any[] }) {
             async findById(id: string) {
                 return store.items.find((u: any) => u.id === id) ?? null
             }
+            async updatePixKey(userId: string, pixKey: string | null) {
+                const item = store.items.find((u: any) => u.id === userId)
+                if (item) (item as any).pixKey = pixKey ?? undefined
+            }
         },
     }
 }

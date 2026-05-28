@@ -1,10 +1,17 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { groupIdParam, updateGroupBody } from '../schemas/group.schema'
+import type z from 'zod'
 import { makeUpdateGroupUseCase } from '../../factories/make-update-group-use-case'
+import type { groupIdParam, updateGroupBody } from '../schemas/group.schema'
 
-export async function updateGroup(request: FastifyRequest, reply: FastifyReply) {
-    const { groupId } = groupIdParam.parse(request.params)
-    const { name, description, currency } = updateGroupBody.parse(request.body)
+type UpdateGroupParams = z.infer<typeof groupIdParam>
+type UpdateGroupBody = z.infer<typeof updateGroupBody>
+
+export async function updateGroup(
+    request: FastifyRequest<{ Params: UpdateGroupParams; Body: UpdateGroupBody }>,
+    reply: FastifyReply,
+) {
+    const { groupId } = request.params
+    const { name, description, currency } = request.body
 
     const useCase = makeUpdateGroupUseCase()
     const { group } = await useCase.execute({

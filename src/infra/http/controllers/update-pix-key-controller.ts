@@ -1,9 +1,12 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { updatePixKeyBody } from '../schemas/user.schema'
+import type z from 'zod'
 import { makeUpdatePixKeyUseCase } from '../../factories/make-update-pix-key-use-case'
+import type { updatePixKeyBody } from '../schemas/user.schema'
 
-export async function updatePixKey(request: FastifyRequest, reply: FastifyReply) {
-    const { pixKey } = updatePixKeyBody.parse(request.body)
+type UpdatePixKeyBody = z.infer<typeof updatePixKeyBody>
+
+export async function updatePixKey(request: FastifyRequest<{ Body: UpdatePixKeyBody }>, reply: FastifyReply) {
+    const { pixKey } = request.body
 
     const useCase = makeUpdatePixKeyUseCase()
     await useCase.execute({

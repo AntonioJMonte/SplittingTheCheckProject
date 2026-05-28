@@ -1,13 +1,20 @@
 import Decimal from 'decimal.js'
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { groupIdParam } from '../schemas/group.schema'
-import { listExpensesQuery } from '../schemas/expense.schema'
+import type z from 'zod'
 import { makeListExpensesUseCase } from '../../factories/make-list-expenses-use-case'
 import { ExpenseView } from '../../../application/repositories/expense-repository'
+import type { groupIdParam } from '../schemas/group.schema'
+import type { listExpensesQuery } from '../schemas/expense.schema'
 
-export async function listExpenses(request: FastifyRequest, reply: FastifyReply) {
-    const { groupId } = groupIdParam.parse(request.params)
-    const query = listExpensesQuery.parse(request.query)
+type ListExpensesParams = z.infer<typeof groupIdParam>
+type ListExpensesQuery = z.infer<typeof listExpensesQuery>
+
+export async function listExpenses(
+    request: FastifyRequest<{ Params: ListExpensesParams; Querystring: ListExpensesQuery }>,
+    reply: FastifyReply,
+) {
+    const { groupId } = request.params
+    const query = request.query
 
     const view = query.view === 'all' || query.view === undefined
         ? undefined

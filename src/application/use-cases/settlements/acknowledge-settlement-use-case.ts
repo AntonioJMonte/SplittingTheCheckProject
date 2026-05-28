@@ -15,6 +15,7 @@ interface AcknowledgeSettlementUseCaseRequest {
 interface AcknowledgeSettlementUseCaseResponse {
     settlement: {
         id: string
+        groupId: string
         fromMemberId: string
         toMemberId: string
         amount: Decimal
@@ -62,6 +63,7 @@ export class AcknowledgeSettlementUseCase {
         return {
             settlement: {
                 id: settlement.id,
+                groupId: settlement.groupId,
                 fromMemberId: settlement.fromMemberId,
                 toMemberId: settlement.toMemberId,
                 amount: settlement.amount.toDecimal(),

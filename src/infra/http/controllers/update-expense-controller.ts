@@ -1,11 +1,21 @@
 import Decimal from 'decimal.js'
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { expenseIdParam, updateExpenseBody } from '../schemas/expense.schema'
+import type z from 'zod'
 import { makeUpdateExpenseUseCase } from '../../factories/make-update-expense-use-case'
+import type { expenseIdParam, updateExpenseBody } from '../schemas/expense.schema'
+import { io } from '../../websocket/io'
+import { emitExpenseUpdated } from '../../websocket/handlers/expense-events'
+import { invalidateGroupBalancesCache } from '../../cache/group-balances-cache'
 
-export async function updateExpense(request: FastifyRequest, reply: FastifyReply) {
-    const { expenseId } = expenseIdParam.parse(request.params)
-    const body = updateExpenseBody.parse(request.body)
+type UpdateExpenseParams = z.infer<typeof expenseIdParam>
+type UpdateExpenseBody = z.infer<typeof updateExpenseBody>
+
+export async function updateExpense(
+    request: FastifyRequest<{ Params: UpdateExpenseParams; Body: UpdateExpenseBody }>,
+    reply: FastifyReply,
+) {
+    const { expenseId } = request.params
+    const body = request.body
 
     const shares = body.shares?.map(s => ({
         memberId: s.memberId,
@@ -26,21 +36,27 @@ export async function updateExpense(request: FastifyRequest, reply: FastifyReply
         shares,
     })
 
-    return reply.status(200).send({
-        expense: {
-            id: expense.id,
-            groupId: expense.groupId,
-            payerId: expense.payerId,
-            description: expense.description,
-            amount: expense.amount.toString(),
-            splitMethod: expense.splitMethod,
-            occurredAt: expense.occurredAt,
-            category: expense.category,
-            shares: expense.shares.map(s => ({
-                id: s.id,
-                memberId: s.memberId,
-                amount: s.amount.toString(),
-            })),
-        },
-    })
+    const expensePayload = {
+        id: expense.id,
+        groupId: expense.groupId,
+        payerId: expense.payerId,
+        description: expense.description,
+        amount: expense.amount.toString(),
+        splitMethod: expense.splitMethod,
+        occurredAt: expense.occurredAt,
+        category: expense.category,
+        shares: expense.shares.map(s => ({
+            id: s.id,
+            memberId: s.memberId,
+            amount: s.amount.toString(),
+        })),
+    }
+
+    await invalidateGroupBalancesCache(expense.groupId)
+
+    if (io) {
+        emitExpenseUpdated(io, expense.groupId, expensePayload).catch(() => {})
+    }
+
+    return reply.status(200).send({ expense: expensePayload })
 }

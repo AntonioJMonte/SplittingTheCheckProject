@@ -1,8 +1,15 @@
 import Decimal from 'decimal.js'
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { groupIdParam } from '../schemas/group.schema'
-import { createExpenseBody } from '../schemas/expense.schema'
+import type z from 'zod'
 import { makeCreateExpenseUseCase } from '../../factories/make-create-expense-use-case'
+import type { groupIdParam } from '../schemas/group.schema'
+import type { createExpenseBody } from '../schemas/expense.schema'
+import { io } from '../../websocket/io'
+import { emitExpenseCreated } from '../../websocket/handlers/expense-events'
+import { invalidateGroupBalancesCache } from '../../cache/group-balances-cache'
+
+type CreateExpenseParams = z.infer<typeof groupIdParam>
+type CreateExpenseBody = z.infer<typeof createExpenseBody>
 
 function resolveShareAmounts(
     shares: Array<{ memberId: string; amount?: number; percentage?: number }>,
@@ -25,9 +32,12 @@ function resolveShareAmounts(
     })
 }
 
-export async function createExpense(request: FastifyRequest, reply: FastifyReply) {
-    const { groupId } = groupIdParam.parse(request.params)
-    const body = createExpenseBody.parse(request.body)
+export async function createExpense(
+    request: FastifyRequest<{ Params: CreateExpenseParams; Body: CreateExpenseBody }>,
+    reply: FastifyReply,
+) {
+    const { groupId } = request.params
+    const body = request.body
 
     const shareInputs = resolveShareAmounts(body.shares, body.amount)
 
@@ -43,21 +53,27 @@ export async function createExpense(request: FastifyRequest, reply: FastifyReply
         category: body.category,
     })
 
-    return reply.status(201).send({
-        expense: {
-            id: expense.id,
-            groupId: expense.groupId,
-            payerId: expense.payerId,
-            description: expense.description,
-            amount: expense.amount.toString(),
-            splitMethod: expense.splitMethod,
-            occurredAt: expense.occurredAt,
-            category: expense.category,
-            shares: expense.shares.map(s => ({
-                id: s.id,
-                memberId: s.memberId,
-                amount: s.amount.toString(),
-            })),
-        },
-    })
+    const expensePayload = {
+        id: expense.id,
+        groupId: expense.groupId,
+        payerId: expense.payerId,
+        description: expense.description,
+        amount: expense.amount.toString(),
+        splitMethod: expense.splitMethod,
+        occurredAt: expense.occurredAt,
+        category: expense.category,
+        shares: expense.shares.map(s => ({
+            id: s.id,
+            memberId: s.memberId,
+            amount: s.amount.toString(),
+        })),
+    }
+
+    await invalidateGroupBalancesCache(groupId)
+
+    if (io) {
+        emitExpenseCreated(io, groupId, expensePayload).catch(() => {})
+    }
+
+    return reply.status(201).send({ expense: expensePayload })
 }

@@ -16,7 +16,7 @@ export class DeleteExpenseUseCase {
         private memberRepository: MemberRepository,
     ) {}
 
-    async execute({ expenseId, requestUserId }: DeleteExpenseUseCaseRequest): Promise<void> {
+    async execute({ expenseId, requestUserId }: DeleteExpenseUseCaseRequest): Promise<{ groupId: string }> {
         const expense = await this.expenseRepository.findById(expenseId)
         if (!expense) {
             throw new ExpenseNotFoundError()
@@ -34,5 +34,6 @@ export class DeleteExpenseUseCase {
         }
 
         await this.expenseRepository.delete(expenseId)
+        return { groupId: expense.groupId }
     }
 }
