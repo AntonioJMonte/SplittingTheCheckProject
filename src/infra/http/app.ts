@@ -11,6 +11,7 @@ import { userRoutes } from './routes/userRoutes'
 import { groupRoutes } from './routes/groupRoutes'
 import { expenseRoutes } from './routes/expenseRoutes'
 import { settlementRoutes } from './routes/settlementRoutes'
+import { healthRoutes } from './routes/healthRoutes'
 
 export const app = fastify()
 
@@ -54,6 +55,7 @@ app.register(fastifySwagger, {
       { name: 'Groups', description: 'Gerenciamento de grupos e membros' },
       { name: 'Expenses', description: 'Lançamento e consulta de despesas' },
       { name: 'Settlements', description: 'Cálculo e confirmação de acertos' },
+      { name: 'Health', description: 'Disponibilidade da API e das dependências' },
     ],
   },
   transform: jsonSchemaTransform,
@@ -85,6 +87,7 @@ app.register(userRoutes)
 app.register(groupRoutes)
 app.register(expenseRoutes)
 app.register(settlementRoutes)
+app.register(healthRoutes)
 
 app.setErrorHandler((error, _, reply) => {
   if (error instanceof ZodError) {
