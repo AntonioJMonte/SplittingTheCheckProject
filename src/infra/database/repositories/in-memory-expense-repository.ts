@@ -2,6 +2,7 @@ import Decimal from 'decimal.js'
 import { ExpenseRepository, FindManyByGroupParams, FindManyByGroupResult } from '../../../application/repositories/expense-repository'
 import { Expense } from '../../../domain/entities/expense'
 import { Settlement } from '../../../domain/entities/settlement'
+import { ExpenseCategory } from '../../../domain/value-objects/expense-category'
 
 export class InMemoryExpenseRepository implements ExpenseRepository {
     public items: Expense[] = []
@@ -87,6 +88,14 @@ export class InMemoryExpenseRepository implements ExpenseRepository {
         if (index !== -1) {
             this.items[index] = data
         }
+    }
+
+    async updateCategory(id: string, category: ExpenseCategory, expectedDescription: string): Promise<boolean> {
+        const index = this.items.findIndex(e => e.id === id && e.description === expectedDescription)
+        if (index === -1) return false
+
+        this.items[index] = this.items[index].withCategory(category)
+        return true
     }
 
     async delete(id: string): Promise<void> {

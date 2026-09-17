@@ -7,16 +7,19 @@ import { Member } from '../../../domain/entities/member'
 import { GroupNotFoundError } from '../../../shared/errors/group-not-found-error'
 import { PayerNotMemberError } from '../../../shared/errors/payer-not-member-error'
 import { MemberNotInGroupError } from '../../../shared/errors/member-not-in-group-error'
+import { FakeExpenseCategorizer } from '../../helpers/fake-expense-categorizer'
 
 describe('CreateExpenseUseCase', () => {
   let groupRepository: InMemoryGroupRepository
   let expenseRepository: InMemoryExpenseRepository
+  let categorizer: FakeExpenseCategorizer
   let sut: CreateExpenseUseCase
 
   beforeEach(() => {
     groupRepository = new InMemoryGroupRepository()
     expenseRepository = new InMemoryExpenseRepository()
-    sut = new CreateExpenseUseCase(groupRepository, expenseRepository)
+    categorizer = new FakeExpenseCategorizer()
+    sut = new CreateExpenseUseCase(groupRepository, expenseRepository, categorizer)
   })
 
   async function makeGroupWithTwoMembers() {
@@ -48,10 +51,11 @@ describe('CreateExpenseUseCase', () => {
     expect(expenseRepository.items).toHaveLength(1)
   })
 
-  it('should create an expense with a category', async () => {
+  it('should keep the category informed by the user without calling the categorizer', async () => {
     const { group, owner, member2 } = await makeGroupWithTwoMembers()
+    categorizer.quickResults.set('Supermercado', 'Compras')
 
-    const { expense } = await sut.execute({
+    const { expense, pendingCategorization } = await sut.execute({
       groupId: group.id,
       payerUserId: owner.userId,
       description: 'Supermercado',
@@ -61,10 +65,55 @@ describe('CreateExpenseUseCase', () => {
         { memberId: member2.id, amount: '50.00' },
       ],
       splitMethod: 'EQUAL',
-      category: 'FOOD',
+      category: 'Alimentação',
     })
 
-    expect(expense.category).toBe('FOOD')
+    expect(expense.category).toBe('Alimentação')
+    expect(pendingCategorization).toBe(false)
+    expect(categorizer.quickCalls).toHaveLength(0)
+    expect(categorizer.fullCalls).toHaveLength(0)
+  })
+
+  it('should persist the category resolved by rules or cache when the user sends none', async () => {
+    const { group, owner, member2 } = await makeGroupWithTwoMembers()
+    categorizer.quickResults.set('Uber para o aeroporto', 'Transporte')
+
+    const { expense, pendingCategorization } = await sut.execute({
+      groupId: group.id,
+      payerUserId: owner.userId,
+      description: 'Uber para o aeroporto',
+      amount: '40.00',
+      shareInputs: [
+        { memberId: owner.id, amount: '20.00' },
+        { memberId: member2.id, amount: '20.00' },
+      ],
+      splitMethod: 'EQUAL',
+    })
+
+    expect(expense.category).toBe('Transporte')
+    expect(expenseRepository.items[0].category).toBe('Transporte')
+    expect(pendingCategorization).toBe(false)
+  })
+
+  it('should create the expense uncategorized and flag it for background categorization without waiting for the LLM', async () => {
+    const { group, owner, member2 } = await makeGroupWithTwoMembers()
+
+    const { expense, pendingCategorization } = await sut.execute({
+      groupId: group.id,
+      payerUserId: owner.userId,
+      description: 'Presente de amigo secreto',
+      amount: '40.00',
+      shareInputs: [
+        { memberId: owner.id, amount: '20.00' },
+        { memberId: member2.id, amount: '20.00' },
+      ],
+      splitMethod: 'EQUAL',
+    })
+
+    expect(expense.category).toBeUndefined()
+    expect(expenseRepository.items).toHaveLength(1)
+    expect(pendingCategorization).toBe(true)
+    expect(categorizer.fullCalls).toHaveLength(0)
   })
 
   it('should throw GroupNotFoundError when group does not exist', async () => {

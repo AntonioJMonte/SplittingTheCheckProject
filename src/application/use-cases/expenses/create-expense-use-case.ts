@@ -1,8 +1,10 @@
 import { GroupRepository } from '../../repositories/group-repository'
 import { ExpenseRepository } from '../../repositories/expense-repository'
+import { ExpenseCategorizer } from '../../services/expense-categorizer'
 import { Expense } from '../../../domain/entities/expense'
 import { Money } from '../../../domain/value-objects/money'
 import { SplitMethodType } from '../../../domain/value-objects/split-method'
+import { ExpenseCategory } from '../../../domain/value-objects/expense-category'
 import { GroupNotFoundError } from '../../../shared/errors/group-not-found-error'
 import { PayerNotMemberError } from '../../../shared/errors/payer-not-member-error'
 import { MemberNotInGroupError } from '../../../shared/errors/member-not-in-group-error'
@@ -20,11 +22,12 @@ interface CreateExpenseUseCaseRequest {
     shareInputs: ShareInput[]
     splitMethod: SplitMethodType
     occurredAt?: Date
-    category?: string
+    category?: ExpenseCategory
 }
 
 interface CreateExpenseUseCaseResponse {
     expense: Expense
+    pendingCategorization: boolean
 }
 
 export class CreateExpenseUseCase {
@@ -32,6 +35,7 @@ export class CreateExpenseUseCase {
     constructor(
         private groupRepository: GroupRepository,
         private expenseRepository: ExpenseRepository,
+        private expenseCategorizer: ExpenseCategorizer,
     ) {}
 
     async execute({
@@ -61,6 +65,8 @@ export class CreateExpenseUseCase {
             }
         }
 
+        const resolvedCategory = category ?? await this.expenseCategorizer.tryQuickCategorize(description)
+
         const expense = Expense.create({
             groupId,
             payerId: payerUserId,
@@ -69,11 +75,11 @@ export class CreateExpenseUseCase {
             shareInputs: shareInputs.map(s => ({ memberId: s.memberId, amount: new Money(s.amount) })),
             splitMethod,
             occurredAt,
-            category,
+            category: resolvedCategory ?? undefined,
         })
 
         await this.expenseRepository.create(expense)
 
-        return { expense }
+        return { expense, pendingCategorization: resolvedCategory === null }
     }
 }

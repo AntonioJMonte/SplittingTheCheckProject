@@ -28,6 +28,13 @@ export async function emitExpenseUpdated(io: Server, groupId: string, expense: E
     io.to(groupId).emit('balances_updated', { groupId })
 }
 
+// Category never affects balances, so unlike the other expense events this one skips balances_updated.
+export async function emitExpenseCategorized(io: Server, groupId: string, expenseId: string, category: string): Promise<void> {
+    const eventId = randomUUID()
+    if (await guardDuplicate(groupId, eventId)) return
+    io.to(groupId).emit('expense_categorized', { eventId, groupId, expenseId, category })
+}
+
 export async function emitExpenseDeleted(io: Server, groupId: string, expenseId: string): Promise<void> {
     const eventId = randomUUID()
     if (await guardDuplicate(groupId, eventId)) return

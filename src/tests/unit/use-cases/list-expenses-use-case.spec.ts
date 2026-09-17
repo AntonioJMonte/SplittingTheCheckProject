@@ -6,6 +6,7 @@ import { InMemoryMemberRepository } from '../../../infra/database/repositories/i
 import { Member } from '../../../domain/entities/member'
 import { Expense } from '../../../domain/entities/expense'
 import { Money } from '../../../domain/value-objects/money'
+import { ExpenseCategory } from '../../../domain/value-objects/expense-category'
 import { NotGroupMemberError } from '../../../shared/errors/not-group-member-error'
 
 describe('ListExpensesUseCase', () => {
@@ -33,7 +34,7 @@ describe('ListExpensesUseCase', () => {
     expenseRepository.memberIdByUserId.set(USER_2_ID, member2.id)
   })
 
-  function makeExpense(payerId = USER_1_ID, amount = '60.00', category?: string) {
+  function makeExpense(payerId = USER_1_ID, amount = '60.00', category?: ExpenseCategory) {
     return Expense.create({
       groupId: GROUP_ID,
       payerId,
@@ -66,17 +67,17 @@ describe('ListExpensesUseCase', () => {
   })
 
   it('should filter by category', async () => {
-    await expenseRepository.create(makeExpense(USER_1_ID, '60.00', 'FOOD'))
-    await expenseRepository.create(makeExpense(USER_1_ID, '40.00', 'TRANSPORT'))
+    await expenseRepository.create(makeExpense(USER_1_ID, '60.00', 'Alimentação'))
+    await expenseRepository.create(makeExpense(USER_1_ID, '40.00', 'Transporte'))
 
     const { expenses } = await sut.execute({
       groupId: GROUP_ID,
       requestUserId: USER_1_ID,
-      filters: { category: 'FOOD' },
+      filters: { category: 'Alimentação' },
     })
 
     expect(expenses).toHaveLength(1)
-    expect(expenses[0].category).toBe('FOOD')
+    expect(expenses[0].category).toBe('Alimentação')
   })
 
   it('should apply pagination', async () => {

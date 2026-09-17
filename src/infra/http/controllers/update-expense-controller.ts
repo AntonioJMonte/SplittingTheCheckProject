@@ -6,6 +6,7 @@ import type { expenseIdParam, updateExpenseBody } from '../schemas/expense.schem
 import { io } from '../../websocket/io'
 import { emitExpenseUpdated } from '../../websocket/handlers/expense-events'
 import { invalidateGroupBalancesCache } from '../../cache/group-balances-cache'
+import { dispatchExpenseCategorization } from '../services/expense-categorization-dispatcher'
 
 type UpdateExpenseParams = z.infer<typeof expenseIdParam>
 type UpdateExpenseBody = z.infer<typeof updateExpenseBody>
@@ -27,13 +28,14 @@ export async function updateExpense(
     }))
 
     const useCase = makeUpdateExpenseUseCase()
-    const { expense } = await useCase.execute({
+    const { expense, pendingCategorization } = await useCase.execute({
         expenseId,
         requestUserId: request.user.sub,
         description: body.description,
         amount: body.amount !== undefined ? String(body.amount) : undefined,
         splitMethod: body.splitMethod,
         shares,
+        category: body.category,
     })
 
     const expensePayload = {
@@ -56,6 +58,10 @@ export async function updateExpense(
 
     if (io) {
         emitExpenseUpdated(io, expense.groupId, expensePayload).catch(() => {})
+    }
+
+    if (pendingCategorization) {
+        void dispatchExpenseCategorization({ expenseId: expense.id, groupId: expense.groupId, requestUserId: request.user.sub })
     }
 
     return reply.status(200).send({ expense: expensePayload })

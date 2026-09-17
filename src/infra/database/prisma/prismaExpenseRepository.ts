@@ -5,6 +5,12 @@ import { Expense } from '../../../domain/entities/expense'
 import { ExpenseShare } from '../../../domain/entities/expense-share'
 import { Money } from '../../../domain/value-objects/money'
 import { SplitMethodType } from '../../../domain/value-objects/split-method'
+import { ExpenseCategory, isExpenseCategory } from '../../../domain/value-objects/expense-category'
+
+// Rows written before the closed category list may hold free text; those read as uncategorized.
+function toCategory(value: string | null): ExpenseCategory | undefined {
+    return value !== null && isExpenseCategory(value) ? value : undefined
+}
 
 function toExpense(row: {
     id: string
@@ -28,7 +34,7 @@ function toExpense(row: {
         ),
         row.splitMethod as SplitMethodType,
         row.occurredAt,
-        row.category ?? undefined,
+        toCategory(row.category),
     )
 }
 
@@ -147,6 +153,7 @@ export class PrismaExpenseRepository implements ExpenseRepository {
                     description: data.description,
                     amount: data.amount.toString(),
                     splitMethod: data.splitMethod,
+                    category: data.category ?? null,
                 },
             })
             await tx.expenseShare.deleteMany({ where: { expenseId: data.id } })
@@ -161,6 +168,14 @@ export class PrismaExpenseRepository implements ExpenseRepository {
                 })
             }
         })
+    }
+
+    async updateCategory(id: string, category: ExpenseCategory, expectedDescription: string): Promise<boolean> {
+        const { count } = await prisma.expense.updateMany({
+            where: { id, description: expectedDescription },
+            data: { category },
+        })
+        return count === 1
     }
 
     async delete(id: string): Promise<void> {

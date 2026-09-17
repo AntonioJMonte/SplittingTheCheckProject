@@ -1,13 +1,14 @@
 import Decimal from 'decimal.js'
 import { ExpenseRepository, ExpenseView, FindManyByGroupResult } from '../../repositories/expense-repository'
 import { MemberRepository } from '../../repositories/member-repository'
+import { ExpenseCategory } from '../../../domain/value-objects/expense-category'
 import { NotGroupMemberError } from '../../../shared/errors/not-group-member-error'
 
 interface ListExpensesUseCaseRequest {
     groupId: string
     requestUserId: string
     filters?: {
-        category?: string
+        category?: ExpenseCategory
         startDate?: Date
         endDate?: Date
         minAmount?: Decimal

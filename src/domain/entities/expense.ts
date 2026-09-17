@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { DomainError } from '../../shared/errors/domain-error'
 import { Money } from '../value-objects/money'
 import { SplitMethodType } from '../value-objects/split-method'
+import { ExpenseCategory } from '../value-objects/expense-category'
 import { ExpenseShare } from './expense-share'
 
 interface ShareInput {
@@ -19,7 +20,7 @@ export class Expense {
         public readonly shares: ReadonlyArray<ExpenseShare>,
         public readonly splitMethod: SplitMethodType,
         public readonly occurredAt: Date,
-        public readonly category?: string,
+        public readonly category?: ExpenseCategory,
     ) {}
 
     static create(props: {
@@ -30,7 +31,7 @@ export class Expense {
         shareInputs: ShareInput[]
         splitMethod: SplitMethodType
         occurredAt?: Date
-        category?: string
+        category?: ExpenseCategory
     }) {
         if (!props.description.trim()) {
             throw new DomainError('A descrição da despesa não pode ser vazia')
@@ -107,6 +108,20 @@ export class Expense {
             newSplitMethod,
             this.occurredAt,
             this.category,
+        )
+    }
+
+    withCategory(category: ExpenseCategory | undefined): Expense {
+        return new Expense(
+            this.id,
+            this.groupId,
+            this.payerId,
+            this.description,
+            this.amount,
+            this.shares,
+            this.splitMethod,
+            this.occurredAt,
+            category,
         )
     }
 }

@@ -13,12 +13,14 @@ import { ExpenseNotFoundError } from '../../../shared/errors/expense-not-found-e
 import { NotGroupMemberError } from '../../../shared/errors/not-group-member-error'
 import { UnauthorizedError } from '../../../shared/errors/unauthorized-error'
 import { MemberNotInGroupError } from '../../../shared/errors/member-not-in-group-error'
+import { FakeExpenseCategorizer } from '../../helpers/fake-expense-categorizer'
 
 describe('UpdateExpenseUseCase', () => {
   let expenseRepository: InMemoryExpenseRepository
   let memberRepository: InMemoryMemberRepository
   let groupRepository: InMemoryGroupRepository
   let settlementRepository: InMemorySettlementRepository
+  let categorizer: FakeExpenseCategorizer
   let sut: UpdateExpenseUseCase
 
   let group: Group
@@ -30,7 +32,8 @@ describe('UpdateExpenseUseCase', () => {
     memberRepository = new InMemoryMemberRepository()
     groupRepository = new InMemoryGroupRepository()
     settlementRepository = new InMemorySettlementRepository()
-    sut = new UpdateExpenseUseCase(expenseRepository, memberRepository, groupRepository, settlementRepository)
+    categorizer = new FakeExpenseCategorizer()
+    sut = new UpdateExpenseUseCase(expenseRepository, memberRepository, groupRepository, settlementRepository, categorizer)
 
     group = Group.create({ name: 'Grupo', creatorUserId: 'user-1', currency: 'BRL' })
     owner = group.members[0] as Member
@@ -40,7 +43,7 @@ describe('UpdateExpenseUseCase', () => {
     await memberRepository.addMemberToGroup(member2)
   })
 
-  function makeExpense() {
+  function makeExpense(category?: 'Alimentação' | 'Lazer') {
     return Expense.create({
       groupId: group.id,
       payerId: owner.userId,
@@ -51,6 +54,7 @@ describe('UpdateExpenseUseCase', () => {
         { memberId: member2.id, amount: new Money('30.00') },
       ],
       splitMethod: 'EQUAL',
+      category,
     })
   }
 
@@ -152,5 +156,71 @@ describe('UpdateExpenseUseCase', () => {
         ],
       }),
     ).rejects.toBeInstanceOf(MemberNotInGroupError)
+  })
+
+  describe('categorization', () => {
+    it('should set the category sent by the user and skip automatic categorization', async () => {
+      const expense = makeExpense('Alimentação')
+      await expenseRepository.create(expense)
+
+      const { expense: updated, pendingCategorization } = await sut.execute({
+        expenseId: expense.id,
+        requestUserId: owner.userId,
+        description: 'Cinema com a turma',
+        category: 'Lazer',
+      })
+
+      expect(updated.category).toBe('Lazer')
+      expect(expenseRepository.items[0].category).toBe('Lazer')
+      expect(pendingCategorization).toBe(false)
+      expect(categorizer.quickCalls).toHaveLength(0)
+    })
+
+    it('should recategorize with rules or cache when only the description changes', async () => {
+      const expense = makeExpense('Alimentação')
+      await expenseRepository.create(expense)
+      categorizer.quickResults.set('Cinema com a turma', 'Lazer')
+
+      const { expense: updated, pendingCategorization } = await sut.execute({
+        expenseId: expense.id,
+        requestUserId: owner.userId,
+        description: 'Cinema com a turma',
+      })
+
+      expect(updated.category).toBe('Lazer')
+      expect(pendingCategorization).toBe(false)
+    })
+
+    it('should clear a stale category and flag background categorization when rules and cache cannot decide', async () => {
+      const expense = makeExpense('Alimentação')
+      await expenseRepository.create(expense)
+
+      const { expense: updated, pendingCategorization } = await sut.execute({
+        expenseId: expense.id,
+        requestUserId: owner.userId,
+        description: 'Rateio diverso',
+      })
+
+      expect(updated.category).toBeUndefined()
+      expect(expenseRepository.items[0].category).toBeUndefined()
+      expect(pendingCategorization).toBe(true)
+      expect(categorizer.fullCalls).toHaveLength(0)
+    })
+
+    it('should keep the current category when the description does not change', async () => {
+      const expense = makeExpense('Alimentação')
+      await expenseRepository.create(expense)
+
+      const { expense: updated, pendingCategorization } = await sut.execute({
+        expenseId: expense.id,
+        requestUserId: owner.userId,
+        description: '  Jantar  ',
+        amount: '60.00',
+      })
+
+      expect(updated.category).toBe('Alimentação')
+      expect(pendingCategorization).toBe(false)
+      expect(categorizer.quickCalls).toHaveLength(0)
+    })
   })
 })

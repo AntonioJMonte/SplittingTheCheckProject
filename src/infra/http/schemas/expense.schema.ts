@@ -1,6 +1,9 @@
 import z from 'zod'
+import { EXPENSE_CATEGORIES } from '../../../domain/value-objects/expense-category'
 
 const errorBody = z.object({ message: z.string() })
+
+const expenseCategory = z.enum(EXPENSE_CATEGORIES)
 
 const shareInput = z.object({
     memberId: z.uuid(),
@@ -15,7 +18,7 @@ export const createExpenseBody = z.object({
     occurredAt: z.iso.datetime().optional(),
     splitMethod: z.enum(['EQUAL', 'FIXED', 'PERCENTAGE']),
     shares: z.array(shareInput).min(1),
-    category: z.string().optional(),
+    category: expenseCategory.optional(),
 })
 
 export const updateExpenseBody = z.object({
@@ -23,6 +26,7 @@ export const updateExpenseBody = z.object({
     amount: z.number().positive().optional(),
     splitMethod: z.enum(['EQUAL', 'FIXED', 'PERCENTAGE']).optional(),
     shares: z.array(shareInput).min(1).optional(),
+    category: expenseCategory.optional(),
 })
 
 export const expenseIdParam = z.object({
@@ -31,7 +35,7 @@ export const expenseIdParam = z.object({
 
 export const listExpensesQuery = z.object({
     view: z.enum(['all', 'involved', 'paid', 'pending']).optional(),
-    category: z.string().optional(),
+    category: expenseCategory.optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     minAmount: z.coerce.number().positive().optional(),
@@ -56,13 +60,13 @@ const expenseShape = z.object({
     amount: z.string(),
     splitMethod: z.enum(['EQUAL', 'FIXED', 'PERCENTAGE']),
     occurredAt: z.date(),
-    category: z.string().optional(),
+    category: expenseCategory.optional(),
     shares: z.array(expenseShareShape),
 })
 
 export const createExpenseRouteSchema = {
     summary: 'Criar despesa',
-    description: 'Registra uma despesa no grupo, distribuindo o valor entre os membros conforme o método de divisão (EQUAL, FIXED ou PERCENTAGE).',
+    description: 'Registra uma despesa no grupo, distribuindo o valor entre os membros conforme o método de divisão (EQUAL, FIXED ou PERCENTAGE). Sem `category`, regras e cache categorizam na hora; se não decidirem, a categoria chega depois pelo evento `expense_categorized`.',
     tags: ['Expenses'],
     security: [{ bearerAuth: [] }],
     params: groupIdParam,
@@ -96,7 +100,7 @@ export const listExpensesRouteSchema = {
 
 export const updateExpenseRouteSchema = {
     summary: 'Atualizar despesa',
-    description: 'Edita descrição, valor ou divisão de uma despesa. Apenas o pagador ou OWNER podem editar.',
+    description: 'Edita descrição, valor, divisão ou categoria de uma despesa. Apenas o pagador ou OWNER podem editar. Mudar a descrição sem enviar `category` recategoriza automaticamente.',
     tags: ['Expenses'],
     security: [{ bearerAuth: [] }],
     params: expenseIdParam,
@@ -104,6 +108,20 @@ export const updateExpenseRouteSchema = {
     response: {
         200: z.object({ expense: expenseShape }),
         400: errorBody,
+        401: errorBody,
+        403: errorBody,
+        404: errorBody,
+    },
+}
+
+export const categorizeExpenseRouteSchema = {
+    summary: 'Recategorizar despesa automaticamente',
+    description: 'Roda a categorização automática (regras → cache → LLM → Outros) e sobrescreve a categoria atual. Qualquer membro do grupo da despesa pode solicitar. Emite o evento `expense_categorized`.',
+    tags: ['Expenses'],
+    security: [{ bearerAuth: [] }],
+    params: expenseIdParam,
+    response: {
+        200: z.object({ expense: expenseShape }),
         401: errorBody,
         403: errorBody,
         404: errorBody,

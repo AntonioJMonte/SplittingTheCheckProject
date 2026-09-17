@@ -1,12 +1,13 @@
 import Decimal from 'decimal.js'
 import { Expense } from '../../domain/entities/expense'
+import { ExpenseCategory } from '../../domain/value-objects/expense-category'
 
 export type ExpenseView = 'involved' | 'paid' | 'pending'
 
 export interface FindManyByGroupParams {
     groupId: string
     userId: string
-    category?: string
+    category?: ExpenseCategory
     startDate?: Date
     endDate?: Date
     minAmount?: Decimal
@@ -27,5 +28,7 @@ export interface ExpenseRepository {
     findByGroupId(groupId: string): Promise<Expense[]>
     findManyByGroup(params: FindManyByGroupParams): Promise<FindManyByGroupResult>
     update(data: Expense): Promise<void>
+    /** Writes only when the stored description still equals `expectedDescription`; resolves to whether it wrote. */
+    updateCategory(id: string, category: ExpenseCategory, expectedDescription: string): Promise<boolean>
     delete(id: string): Promise<void>
 }

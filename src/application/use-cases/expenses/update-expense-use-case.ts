@@ -2,9 +2,11 @@ import { ExpenseRepository } from '../../repositories/expense-repository'
 import { MemberRepository } from '../../repositories/member-repository'
 import { GroupRepository } from '../../repositories/group-repository'
 import { SettlementRepository } from '../../repositories/settlement-repository'
+import { ExpenseCategorizer } from '../../services/expense-categorizer'
 import { Expense } from '../../../domain/entities/expense'
 import { Money } from '../../../domain/value-objects/money'
 import { SplitMethodType } from '../../../domain/value-objects/split-method'
+import { ExpenseCategory } from '../../../domain/value-objects/expense-category'
 import { ExpenseNotFoundError } from '../../../shared/errors/expense-not-found-error'
 import { NotGroupMemberError } from '../../../shared/errors/not-group-member-error'
 import { UnauthorizedError } from '../../../shared/errors/unauthorized-error'
@@ -22,10 +24,12 @@ interface UpdateExpenseUseCaseRequest {
     amount?: string
     splitMethod?: SplitMethodType
     shares?: ShareInput[]
+    category?: ExpenseCategory
 }
 
 interface UpdateExpenseUseCaseResponse {
     expense: Expense
+    pendingCategorization: boolean
 }
 
 export class UpdateExpenseUseCase {
@@ -35,6 +39,7 @@ export class UpdateExpenseUseCase {
         private memberRepository: MemberRepository,
         private groupRepository: GroupRepository,
         private settlementRepository: SettlementRepository,
+        private expenseCategorizer: ExpenseCategorizer,
     ) {}
 
     async execute({
@@ -44,6 +49,7 @@ export class UpdateExpenseUseCase {
         amount,
         splitMethod,
         shares,
+        category,
     }: UpdateExpenseUseCaseRequest): Promise<UpdateExpenseUseCaseResponse> {
         const expense = await this.expenseRepository.findById(expenseId)
         if (!expense) {
@@ -71,16 +77,25 @@ export class UpdateExpenseUseCase {
             }
         }
 
-        const updatedExpense = expense.update({
+        let updatedExpense = expense.update({
             description,
             amount: amount !== undefined ? new Money(amount) : undefined,
             splitMethod,
             shareInputs: shares?.map(s => ({ memberId: s.memberId, amount: new Money(s.amount) })),
         })
 
+        let pendingCategorization = false
+        if (category !== undefined) {
+            updatedExpense = updatedExpense.withCategory(category)
+        } else if (updatedExpense.description !== expense.description) {
+            const quickCategory = await this.expenseCategorizer.tryQuickCategorize(updatedExpense.description)
+            updatedExpense = updatedExpense.withCategory(quickCategory ?? undefined)
+            pendingCategorization = quickCategory === null
+        }
+
         await this.expenseRepository.update(updatedExpense)
         await this.settlementRepository.cancelPendingByGroupId(expense.groupId)
 
-        return { expense: updatedExpense }
+        return { expense: updatedExpense, pendingCategorization }
     }
 }

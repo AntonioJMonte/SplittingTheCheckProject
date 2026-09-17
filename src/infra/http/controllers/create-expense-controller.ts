@@ -7,6 +7,7 @@ import type { createExpenseBody } from '../schemas/expense.schema'
 import { io } from '../../websocket/io'
 import { emitExpenseCreated } from '../../websocket/handlers/expense-events'
 import { invalidateGroupBalancesCache } from '../../cache/group-balances-cache'
+import { dispatchExpenseCategorization } from '../services/expense-categorization-dispatcher'
 
 type CreateExpenseParams = z.infer<typeof groupIdParam>
 type CreateExpenseBody = z.infer<typeof createExpenseBody>
@@ -42,7 +43,7 @@ export async function createExpense(
     const shareInputs = resolveShareAmounts(body.shares, body.amount)
 
     const useCase = makeCreateExpenseUseCase()
-    const { expense } = await useCase.execute({
+    const { expense, pendingCategorization } = await useCase.execute({
         groupId,
         payerUserId: body.payerId,
         description: body.description,
@@ -73,6 +74,10 @@ export async function createExpense(
 
     if (io) {
         emitExpenseCreated(io, groupId, expensePayload).catch(() => {})
+    }
+
+    if (pendingCategorization) {
+        void dispatchExpenseCategorization({ expenseId: expense.id, groupId, requestUserId: request.user.sub })
     }
 
     return reply.status(201).send({ expense: expensePayload })
