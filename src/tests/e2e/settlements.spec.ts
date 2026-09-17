@@ -10,6 +10,7 @@ const stores = vi.hoisted(() => ({
     members: [] as any[],
     expenses: [] as any[],
     settlements: [] as any[],
+    simulateVersionConflict: false,
 }))
 
 vi.mock('../../infra/database/prisma/prismaUserRepository', () => ({
@@ -95,7 +96,7 @@ vi.mock('../../infra/database/prisma/prismaExpenseRepository', () => ({
 
 vi.mock('../../infra/database/prisma/prismaSettlementRepository', () => ({
     PrismaSettlementRepository: class {
-        async create(s: any) { stores.settlements.push(s) }
+        async create(s: any) { stores.settlements.push(s); return true }
         async findById(id: string) { return stores.settlements.find((s: any) => s.id === id) ?? null }
         async findPendingBetweenMembers(from: string, to: string) {
             return stores.settlements.find((s: any) => s.fromMemberId === from && s.toMemberId === to && s.status === 'PENDING') ?? null
@@ -106,7 +107,7 @@ vi.mock('../../infra/database/prisma/prismaSettlementRepository', () => ({
         async findConfirmedByMemberAndGroup(memberId: string, groupId: string) {
             return stores.settlements.filter((s: any) => s.groupId === groupId && (s.fromMemberId === memberId || s.toMemberId === memberId) && s.status === 'CONFIRMED')
         }
-        async updateStatus() {}
+        async updateStatus() { return !stores.simulateVersionConflict }
         async cancelPendingByGroupId() {}
     },
 }))
@@ -193,6 +194,7 @@ describe('Settlements e2e', () => {
         stores.members.splice(0)
         stores.expenses.splice(0)
         stores.settlements.splice(0)
+        stores.simulateVersionConflict = false
     })
 
     afterAll(async () => {
@@ -277,6 +279,31 @@ describe('Settlements e2e', () => {
         expect(body.settlement.status).toBe('CONFIRMED')
         expect(body.settlement.amount).toBe('50.00')
         expect(body.settlement.confirmedAt).toBeDefined()
+    })
+
+    it('PATCH /settlements/:settlementId/acknowledge → 409 when the settlement changed after it was read', async () => {
+        const { accessToken, groupId, aliceMemberId } = await setupGroup()
+
+        const bobMember = Member.create({ userId: 'bob-fake-id', groupId })
+        stores.members.push(bobMember)
+
+        const settlement = Settlement.create({
+            groupId,
+            fromMemberId: bobMember.id,
+            toMemberId: aliceMemberId,
+            amount: new Money('50.00'),
+        })
+        stores.settlements.push(settlement)
+        stores.simulateVersionConflict = true
+
+        const res = await app.inject({
+            method: 'PATCH',
+            url: `/settlements/${settlement.id}/acknowledge`,
+            headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        expect(res.statusCode).toBe(409)
+        expect(res.json().message).toBe('O acerto foi alterado por outra operação. Recarregue e tente novamente.')
     })
 
     it('PATCH /settlements/:settlementId/acknowledge → 401 without authentication token', async () => {

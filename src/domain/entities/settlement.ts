@@ -17,6 +17,7 @@ export class Settlement {
         status: SettlementStatus = 'PENDING',
         confirmedAt?: Date,
         public readonly pixCopyPaste?: string,
+        public readonly version: number = 0,
     ) {
         this._status = status
         this._confirmedAt = confirmedAt

@@ -10,6 +10,7 @@ import { SettlementAlreadyConfirmedError } from '../../../shared/errors/settleme
 import { SettlementCancelledError } from '../../../shared/errors/settlement-cancelled-error'
 import { UnauthorizedError } from '../../../shared/errors/unauthorized-error'
 import { MemberNotFoundError } from '../../../shared/errors/member-not-found-error'
+import { ConcurrentModificationError } from '../../../shared/errors/concurrent-modification-error'
 
 describe('AcknowledgeSettlementUseCase', () => {
   let settlementRepository: InMemorySettlementRepository
@@ -111,5 +112,45 @@ describe('AcknowledgeSettlementUseCase', () => {
     await expect(
       sut.execute({ settlementId: settlement.id, requestUserId: TO_USER_ID }),
     ).rejects.toBeInstanceOf(MemberNotFoundError)
+  })
+
+  describe('optimistic lock', () => {
+    it('should let only one of two concurrent acknowledges succeed; the other gets ConcurrentModificationError', async () => {
+      const settlement = makePendingSettlement()
+      await settlementRepository.create(settlement)
+
+      const results = await Promise.allSettled([
+        sut.execute({ settlementId: settlement.id, requestUserId: TO_USER_ID }),
+        sut.execute({ settlementId: settlement.id, requestUserId: TO_USER_ID }),
+      ])
+
+      const fulfilled = results.filter(r => r.status === 'fulfilled')
+      const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      expect(fulfilled).toHaveLength(1)
+      expect(rejected).toHaveLength(1)
+      expect(rejected[0].reason).toBeInstanceOf(ConcurrentModificationError)
+      expect(settlementRepository.items[0].status).toBe('CONFIRMED')
+      expect(settlementRepository.items[0].version).toBe(1)
+    })
+
+    it('should not overwrite CANCELLED with CONFIRMED when an expense edit cancels the settlement mid-acknowledge', async () => {
+      const settlement = makePendingSettlement()
+      await settlementRepository.create(settlement)
+
+      const originalFindById = memberRepository.findById.bind(memberRepository)
+      memberRepository.findById = async (id: string) => {
+        await settlementRepository.cancelPendingByGroupId(GROUP_ID)
+        return originalFindById(id)
+      }
+
+      await expect(
+        sut.execute({ settlementId: settlement.id, requestUserId: TO_USER_ID }),
+      ).rejects.toBeInstanceOf(ConcurrentModificationError)
+      expect(settlementRepository.items[0].status).toBe('CANCELLED')
+    })
+
+    it('should map the conflict to HTTP 409', () => {
+      expect(new ConcurrentModificationError().statusCode).toBe(409)
+    })
   })
 })

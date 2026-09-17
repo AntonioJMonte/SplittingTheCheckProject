@@ -93,7 +93,7 @@ vi.mock('../../infra/database/prisma/prismaExpenseRepository', () => ({
 
 vi.mock('../../infra/database/prisma/prismaSettlementRepository', () => ({
     PrismaSettlementRepository: class {
-        async create(s: any) { stores.settlements.push(s) }
+        async create(s: any) { stores.settlements.push(s); return true }
         async findById(id: string) { return stores.settlements.find((s: any) => s.id === id) ?? null }
         async findPendingBetweenMembers(from: string, to: string) {
             return stores.settlements.find((s: any) => s.fromMemberId === from && s.toMemberId === to && s.status === 'PENDING') ?? null
@@ -104,7 +104,7 @@ vi.mock('../../infra/database/prisma/prismaSettlementRepository', () => ({
         async findConfirmedByMemberAndGroup(memberId: string, groupId: string) {
             return stores.settlements.filter((s: any) => s.groupId === groupId && (s.fromMemberId === memberId || s.toMemberId === memberId) && s.status === 'CONFIRMED')
         }
-        async updateStatus() {}
+        async updateStatus() { return true }
         async cancelPendingByGroupId() {}
     },
 }))

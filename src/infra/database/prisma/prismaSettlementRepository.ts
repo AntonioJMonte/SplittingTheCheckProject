@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from './prismaClient'
 import { SettlementRepository } from '../../../application/repositories/settlement-repository'
 import { Settlement, SettlementStatus } from '../../../domain/entities/settlement'
@@ -12,6 +13,7 @@ function toSettlement(row: {
     status: string
     confirmedAt: Date | null
     pixCopyPaste: string | null
+    version: number
 }): Settlement {
     return new Settlement(
         row.id,
@@ -22,23 +24,42 @@ function toSettlement(row: {
         row.status as SettlementStatus,
         row.confirmedAt ?? undefined,
         row.pixCopyPaste ?? undefined,
+        row.version,
     )
+}
+
+function pendingKeyFor(settlement: Settlement): string | null {
+    return settlement.status === 'PENDING' ? `${settlement.fromMemberId}:${settlement.toMemberId}` : null
+}
+
+function isPendingKeyConflict(error: unknown): boolean {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') return false
+    const target = error.meta?.target
+    return Array.isArray(target) ? target.includes('pendingKey') : String(target).includes('pendingKey')
 }
 
 export class PrismaSettlementRepository implements SettlementRepository {
 
-    async create(settlement: Settlement): Promise<void> {
-        await prisma.settlement.create({
-            data: {
-                id: settlement.id,
-                groupId: settlement.groupId,
-                fromMemberId: settlement.fromMemberId,
-                toMemberId: settlement.toMemberId,
-                amount: settlement.amount.toString(),
-                status: settlement.status,
-                pixCopyPaste: settlement.pixCopyPaste,
-            },
-        })
+    async create(settlement: Settlement): Promise<boolean> {
+        try {
+            await prisma.settlement.create({
+                data: {
+                    id: settlement.id,
+                    groupId: settlement.groupId,
+                    fromMemberId: settlement.fromMemberId,
+                    toMemberId: settlement.toMemberId,
+                    amount: settlement.amount.toString(),
+                    status: settlement.status,
+                    pixCopyPaste: settlement.pixCopyPaste,
+                    version: settlement.version,
+                    pendingKey: pendingKeyFor(settlement),
+                },
+            })
+            return true
+        } catch (error) {
+            if (isPendingKeyConflict(error)) return false
+            throw error
+        }
     }
 
     async findById(id: string): Promise<Settlement | null> {
@@ -76,20 +97,27 @@ export class PrismaSettlementRepository implements SettlementRepository {
         return rows.map(toSettlement)
     }
 
-    async updateStatus(id: string, status: 'CONFIRMED' | 'CANCELLED'): Promise<void> {
-        await prisma.settlement.update({
-            where: { id },
+    async updateStatus(id: string, status: 'CONFIRMED' | 'CANCELLED', expectedVersion: number): Promise<boolean> {
+        const { count } = await prisma.settlement.updateMany({
+            where: { id, version: expectedVersion },
             data: {
                 status,
                 confirmedAt: status === 'CONFIRMED' ? new Date() : undefined,
+                pendingKey: null,
+                version: { increment: 1 },
             },
         })
+        return count === 1
     }
 
     async cancelPendingByGroupId(groupId: string): Promise<void> {
         await prisma.settlement.updateMany({
             where: { groupId, status: 'PENDING' },
-            data: { status: 'CANCELLED' },
+            data: {
+                status: 'CANCELLED',
+                pendingKey: null,
+                version: { increment: 1 },
+            },
         })
     }
 }

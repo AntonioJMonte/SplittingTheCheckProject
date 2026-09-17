@@ -58,13 +58,14 @@ export const confirmSettlementRouteSchema = {
         401: errorBody,
         403: errorBody,
         404: errorBody,
+        409: errorBody,
         422: errorBody,
     },
 }
 
 export const acknowledgeSettlementRouteSchema = {
     summary: 'Confirmar recebimento do acerto',
-    description: 'O credor confirma que recebeu o pagamento, encerrando o acerto com status CONFIRMED.',
+    description: 'O credor confirma que recebeu o pagamento, encerrando o acerto com status CONFIRMED. Responde 409 se o acerto foi alterado por outra operação entre a leitura e a escrita (lock otimista).',
     tags: ['Settlements'],
     security: [{ bearerAuth: [] }],
     params: settlementIdParam,
@@ -73,5 +74,6 @@ export const acknowledgeSettlementRouteSchema = {
         401: errorBody,
         403: errorBody,
         404: errorBody,
+        409: errorBody,
     },
 }

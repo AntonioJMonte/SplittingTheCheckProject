@@ -88,6 +88,12 @@ vi.mock('../../infra/database/prisma/prismaExpenseRepository', () => ({
             const idx = stores.expenses.findIndex((e: any) => e.id === expense.id)
             if (idx !== -1) stores.expenses[idx] = expense
         }
+        async updateCategory(id: string, category: any, expectedDescription: string) {
+            const idx = stores.expenses.findIndex((e: any) => e.id === id && e.description === expectedDescription)
+            if (idx === -1) return false
+            stores.expenses[idx] = stores.expenses[idx].withCategory(category)
+            return true
+        }
         async delete(id: string) {
             const idx = stores.expenses.findIndex((e: any) => e.id === id)
             if (idx !== -1) stores.expenses.splice(idx, 1)
@@ -95,9 +101,14 @@ vi.mock('../../infra/database/prisma/prismaExpenseRepository', () => ({
     },
 }))
 
+vi.mock('../../infra/cache/llm-category-cache', () => ({
+    getCategoryCache: async () => null,
+    setCategoryCache: async () => {},
+}))
+
 vi.mock('../../infra/database/prisma/prismaSettlementRepository', () => ({
     PrismaSettlementRepository: class {
-        async create(s: any) { stores.settlements.push(s) }
+        async create(s: any) { stores.settlements.push(s); return true }
         async findById(id: string) { return stores.settlements.find((s: any) => s.id === id) ?? null }
         async findPendingBetweenMembers(from: string, to: string) {
             return stores.settlements.find((s: any) => s.fromMemberId === from && s.toMemberId === to && s.status === 'PENDING') ?? null
@@ -108,7 +119,7 @@ vi.mock('../../infra/database/prisma/prismaSettlementRepository', () => ({
         async findConfirmedByMemberAndGroup(memberId: string, groupId: string) {
             return stores.settlements.filter((s: any) => s.groupId === groupId && (s.fromMemberId === memberId || s.toMemberId === memberId) && s.status === 'CONFIRMED')
         }
-        async updateStatus() {}
+        async updateStatus() { return true }
         async cancelPendingByGroupId() {}
     },
 }))
@@ -257,5 +268,110 @@ describe('Expenses e2e', () => {
 
         expect(res.statusCode).toBe(204)
         expect(stores.expenses).toHaveLength(0)
+    })
+
+    describe('categorization', () => {
+        async function createExpense(accessToken: string, groupId: string, userId: string, memberId: string, extra: Record<string, unknown>) {
+            const res = await app.inject({
+                method: 'POST',
+                url: `/groups/${groupId}/expenses`,
+                headers: { Authorization: `Bearer ${accessToken}` },
+                payload: { amount: 45, payerId: userId, splitMethod: 'EQUAL', shares: [{ memberId }], ...extra },
+            })
+            return res
+        }
+
+        it('POST /groups/:groupId/expenses → 201 with the category resolved by rules in the response', async () => {
+            const { accessToken, userId, groupId, memberId } = await setupGroupWithMember()
+
+            const res = await createExpense(accessToken, groupId, userId, memberId, { description: 'Uber para o aeroporto' })
+
+            expect(res.statusCode).toBe(201)
+            expect(res.json().expense.category).toBe('Transporte')
+        })
+
+        it('POST /groups/:groupId/expenses → 400 when category is outside the closed list', async () => {
+            const { accessToken, userId, groupId, memberId } = await setupGroupWithMember()
+
+            const res = await createExpense(accessToken, groupId, userId, memberId, { description: 'Pizza', category: 'Comida' })
+
+            expect(res.statusCode).toBe(400)
+            expect(stores.expenses).toHaveLength(0)
+        })
+
+        it('POST /groups/:groupId/expenses → 201 immediately, then categorizes in background ("Outros" without API key)', async () => {
+            const { accessToken, userId, groupId, memberId } = await setupGroupWithMember()
+
+            const res = await createExpense(accessToken, groupId, userId, memberId, { description: 'Rateio diverso' })
+
+            expect(res.statusCode).toBe(201)
+            expect(res.json().expense.category).toBeUndefined()
+            await vi.waitFor(() => expect(stores.expenses[0].category).toBe('Outros'))
+        })
+
+        it('PATCH /expenses/:expenseId → 200 sets the category chosen by the user', async () => {
+            const { accessToken, userId, groupId, memberId } = await setupGroupWithMember()
+            const createRes = await createExpense(accessToken, groupId, userId, memberId, { description: 'Pizza' })
+
+            const res = await app.inject({
+                method: 'PATCH',
+                url: `/expenses/${createRes.json().expense.id}`,
+                headers: { Authorization: `Bearer ${accessToken}` },
+                payload: { category: 'Lazer' },
+            })
+
+            expect(res.statusCode).toBe(200)
+            expect(res.json().expense.category).toBe('Lazer')
+        })
+
+        it('POST /expenses/:expenseId/categorize → 200 overwrites the category for a group member', async () => {
+            const { accessToken, userId, groupId, memberId } = await setupGroupWithMember()
+            const createRes = await createExpense(accessToken, groupId, userId, memberId, { description: 'Netflix', category: 'Lazer' })
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/expenses/${createRes.json().expense.id}/categorize`,
+                headers: { Authorization: `Bearer ${accessToken}` },
+            })
+
+            expect(res.statusCode).toBe(200)
+            expect(res.json().expense.category).toBe('Assinaturas')
+            expect(stores.expenses[0].category).toBe('Assinaturas')
+        })
+
+        it('POST /expenses/:expenseId/categorize → 403 when requester is not a member of the expense group', async () => {
+            const { accessToken, userId, groupId, memberId } = await setupGroupWithMember()
+            const createRes = await createExpense(accessToken, groupId, userId, memberId, { description: 'Netflix' })
+            const { accessToken: outsiderToken } = await registerAndAuth('Mallory', 'mallory@example.com')
+
+            const res = await app.inject({
+                method: 'POST',
+                url: `/expenses/${createRes.json().expense.id}/categorize`,
+                headers: { Authorization: `Bearer ${outsiderToken}` },
+            })
+
+            expect(res.statusCode).toBe(403)
+        })
+
+        it('POST /expenses/:expenseId/categorize → 404 when the expense does not exist', async () => {
+            const { accessToken } = await setupGroupWithMember()
+
+            const res = await app.inject({
+                method: 'POST',
+                url: '/expenses/00000000-0000-0000-0000-000000000000/categorize',
+                headers: { Authorization: `Bearer ${accessToken}` },
+            })
+
+            expect(res.statusCode).toBe(404)
+        })
+
+        it('POST /expenses/:expenseId/categorize → 401 without authentication token', async () => {
+            const res = await app.inject({
+                method: 'POST',
+                url: '/expenses/00000000-0000-0000-0000-000000000000/categorize',
+            })
+
+            expect(res.statusCode).toBe(401)
+        })
     })
 })

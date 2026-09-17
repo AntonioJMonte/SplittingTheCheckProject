@@ -6,6 +6,7 @@ import { SettlementAlreadyConfirmedError } from '../../../shared/errors/settleme
 import { SettlementCancelledError } from '../../../shared/errors/settlement-cancelled-error'
 import { UnauthorizedError } from '../../../shared/errors/unauthorized-error'
 import { MemberNotFoundError } from '../../../shared/errors/member-not-found-error'
+import { ConcurrentModificationError } from '../../../shared/errors/concurrent-modification-error'
 
 interface AcknowledgeSettlementUseCaseRequest {
     settlementId: string
@@ -58,7 +59,10 @@ export class AcknowledgeSettlementUseCase {
         }
 
         settlement.confirm()
-        await this.settlementRepository.updateStatus(settlementId, 'CONFIRMED')
+        const applied = await this.settlementRepository.updateStatus(settlementId, 'CONFIRMED', settlement.version)
+        if (!applied) {
+            throw new ConcurrentModificationError()
+        }
 
         return {
             settlement: {

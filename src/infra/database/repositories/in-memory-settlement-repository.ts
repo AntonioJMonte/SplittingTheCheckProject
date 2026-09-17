@@ -1,46 +1,88 @@
 import { SettlementRepository } from '../../../application/repositories/settlement-repository'
-import { Settlement } from '../../../domain/entities/settlement'
+import { Settlement, SettlementStatus } from '../../../domain/entities/settlement'
+
+interface SnapshotChanges {
+    status?: SettlementStatus
+    confirmedAt?: Date
+    version?: number
+}
+
+// Stores and returns copies so a use case mutating the entity it read cannot bypass the version check,
+// mirroring how rows behave in the database.
+function snapshot(settlement: Settlement, changes: SnapshotChanges = {}): Settlement {
+    return new Settlement(
+        settlement.id,
+        settlement.groupId,
+        settlement.fromMemberId,
+        settlement.toMemberId,
+        settlement.amount,
+        changes.status ?? settlement.status,
+        changes.confirmedAt ?? settlement.confirmedAt,
+        settlement.pixCopyPaste,
+        changes.version ?? settlement.version,
+    )
+}
 
 export class InMemorySettlementRepository implements SettlementRepository {
     public items: Settlement[] = []
 
-    async create(settlement: Settlement): Promise<void> {
-        this.items.push(settlement)
+    async create(settlement: Settlement): Promise<boolean> {
+        const duplicatedPending = settlement.status === 'PENDING' && this.items.some(
+            s => s.fromMemberId === settlement.fromMemberId && s.toMemberId === settlement.toMemberId && s.status === 'PENDING',
+        )
+        if (duplicatedPending) return false
+
+        this.items.push(snapshot(settlement))
+        return true
     }
 
     async findById(id: string): Promise<Settlement | null> {
-        return this.items.find(s => s.id === id) ?? null
+        const found = this.items.find(s => s.id === id)
+        return found ? snapshot(found) : null
     }
 
     async findPendingBetweenMembers(fromMemberId: string, toMemberId: string): Promise<Settlement | null> {
-        return this.items.find(
+        const found = this.items.find(
             s => s.fromMemberId === fromMemberId && s.toMemberId === toMemberId && s.status === 'PENDING',
-        ) ?? null
+        )
+        return found ? snapshot(found) : null
     }
 
     async findConfirmedByMemberAndGroup(memberId: string, groupId: string): Promise<Settlement[]> {
-        return this.items.filter(
-            s =>
-                s.groupId === groupId &&
-                s.status === 'CONFIRMED' &&
-                (s.fromMemberId === memberId || s.toMemberId === memberId),
-        )
+        return this.items
+            .filter(
+                s =>
+                    s.groupId === groupId &&
+                    s.status === 'CONFIRMED' &&
+                    (s.fromMemberId === memberId || s.toMemberId === memberId),
+            )
+            .map(s => snapshot(s))
     }
 
     async findConfirmedByGroup(groupId: string): Promise<Settlement[]> {
-        return this.items.filter(s => s.groupId === groupId && s.status === 'CONFIRMED')
+        return this.items
+            .filter(s => s.groupId === groupId && s.status === 'CONFIRMED')
+            .map(s => snapshot(s))
     }
 
-    async updateStatus(_id: string, _status: 'CONFIRMED' | 'CANCELLED'): Promise<void> {
-        // In-memory: the entity was already mutated by the use case via domain methods
-        // (settlement.confirm() / settlement.cancel()) before this persistence call.
+    async updateStatus(id: string, status: 'CONFIRMED' | 'CANCELLED', expectedVersion: number): Promise<boolean> {
+        const index = this.items.findIndex(s => s.id === id && s.version === expectedVersion)
+        if (index === -1) return false
+
+        const current = this.items[index]
+        this.items[index] = snapshot(current, {
+            status,
+            confirmedAt: status === 'CONFIRMED' ? new Date() : undefined,
+            version: current.version + 1,
+        })
+        return true
     }
 
     async cancelPendingByGroupId(groupId: string): Promise<void> {
-        for (const settlement of this.items) {
-            if (settlement.groupId === groupId && settlement.status === 'PENDING') {
-                settlement.cancel()
-            }
-        }
+        this.items = this.items.map(s =>
+            s.groupId === groupId && s.status === 'PENDING'
+                ? snapshot(s, { status: 'CANCELLED', version: s.version + 1 })
+                : s,
+        )
     }
 }

@@ -99,6 +99,11 @@ model Settlement {
   pixCopyPaste String? // gerado quando criado
   confirmedAt  DateTime?
   createdAt    DateTime         @default(now())
+  // Lock otimista: toda escrita de status incrementa e só aplica se a versão lida ainda for a atual.
+  version      Int              @default(0)
+  // "<fromMemberId>:<toMemberId>" enquanto PENDING, null depois. Postgres aceita vários NULL no
+  // índice único, então isso impede dois PENDING simultâneos para o mesmo par sem índice parcial.
+  pendingKey   String?          @unique
   group        Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
   fromMember   Member           @relation("SettlementFrom", fields: [fromMemberId], references: [id])
   toMember     Member           @relation("SettlementTo", fields: [toMemberId], references: [id])

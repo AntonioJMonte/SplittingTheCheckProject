@@ -16,6 +16,7 @@ import { MemberNotInSameGroupError } from '../../../shared/errors/member-not-in-
 import { UnauthorizedError } from '../../../shared/errors/unauthorized-error'
 import { AmountExceedsDebtError } from '../../../shared/errors/amount-exceeds-debt-error'
 import { SettlementAlreadyPendingError } from '../../../shared/errors/settlement-already-pending-error'
+import { ConcurrentModificationError } from '../../../shared/errors/concurrent-modification-error'
 
 const mockPixGenerator: PixGenerator = { generate: () => 'PIX_COPY_PASTE_STRING' }
 
@@ -184,5 +185,90 @@ describe('ConfirmSettlementUseCase', () => {
         requestUserId: 'someone-else',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedError)
+  })
+
+  describe('concurrent inserts for the same pair', () => {
+    function makeCompetitor(amount: string) {
+      return Settlement.create({
+        groupId: GROUP_ID,
+        fromMemberId: fromMember.id,
+        toMemberId: toMember.id,
+        amount: new Money(amount),
+      })
+    }
+
+    function insertCompetitorRightBeforeOurInsert(competitor: Settlement) {
+      const originalCreate = settlementRepository.create.bind(settlementRepository)
+      let raced = false
+      settlementRepository.create = async (settlement: Settlement) => {
+        if (!raced) {
+          raced = true
+          await originalCreate(competitor)
+        }
+        return originalCreate(settlement)
+      }
+    }
+
+    it('should return the competing settlement when it has the same amount (idempotent double click)', async () => {
+      const competitor = makeCompetitor('50.00')
+      insertCompetitorRightBeforeOurInsert(competitor)
+
+      const { settlement } = await sut.execute({
+        fromMemberId: fromMember.id,
+        toMemberId: toMember.id,
+        amount: new Decimal('50.00'),
+        requestUserId: fromMember.userId,
+      })
+
+      expect(settlement.id).toBe(competitor.id)
+      expect(settlementRepository.items).toHaveLength(1)
+    })
+
+    it('should throw SettlementAlreadyPendingError when the competing settlement has another amount', async () => {
+      insertCompetitorRightBeforeOurInsert(makeCompetitor('25.00'))
+
+      await expect(
+        sut.execute({
+          fromMemberId: fromMember.id,
+          toMemberId: toMember.id,
+          amount: new Decimal('50.00'),
+          requestUserId: fromMember.userId,
+        }),
+      ).rejects.toBeInstanceOf(SettlementAlreadyPendingError)
+      expect(settlementRepository.items).toHaveLength(1)
+    })
+
+    it('should throw ConcurrentModificationError when the competing settlement left PENDING before we could read it', async () => {
+      insertCompetitorRightBeforeOurInsert(makeCompetitor('50.00'))
+      const originalFindPending = settlementRepository.findPendingBetweenMembers.bind(settlementRepository)
+      let calls = 0
+      settlementRepository.findPendingBetweenMembers = async (from: string, to: string) => {
+        calls++
+        return calls === 1 ? originalFindPending(from, to) : null
+      }
+
+      await expect(
+        sut.execute({
+          fromMemberId: fromMember.id,
+          toMemberId: toMember.id,
+          amount: new Decimal('50.00'),
+          requestUserId: fromMember.userId,
+        }),
+      ).rejects.toBeInstanceOf(ConcurrentModificationError)
+    })
+
+    it('should persist a single PENDING settlement when two identical requests run concurrently', async () => {
+      const request = {
+        fromMemberId: fromMember.id,
+        toMemberId: toMember.id,
+        amount: new Decimal('50.00'),
+        requestUserId: fromMember.userId,
+      }
+
+      const [first, second] = await Promise.all([sut.execute(request), sut.execute(request)])
+
+      expect(first.settlement.id).toBe(second.settlement.id)
+      expect(settlementRepository.items.filter(s => s.status === 'PENDING')).toHaveLength(1)
+    })
   })
 })

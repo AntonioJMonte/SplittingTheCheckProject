@@ -12,6 +12,7 @@ import { MemberNotInSameGroupError } from '../../../shared/errors/member-not-in-
 import { UnauthorizedError } from '../../../shared/errors/unauthorized-error'
 import { AmountExceedsDebtError } from '../../../shared/errors/amount-exceeds-debt-error'
 import { SettlementAlreadyPendingError } from '../../../shared/errors/settlement-already-pending-error'
+import { ConcurrentModificationError } from '../../../shared/errors/concurrent-modification-error'
 
 interface ConfirmSettlementUseCaseRequest {
     fromMemberId: string
@@ -40,6 +41,13 @@ function toResponse(settlement: Settlement): ConfirmSettlementUseCaseResponse['s
         status: 'PENDING',
         pixCopyPaste: settlement.pixCopyPaste ?? null,
     }
+}
+
+function resolveExistingPending(existing: Settlement, amount: Decimal): ConfirmSettlementUseCaseResponse {
+    if (existing.amount.toDecimal().equals(amount)) {
+        return { settlement: toResponse(existing) }
+    }
+    throw new SettlementAlreadyPendingError()
 }
 
 export class ConfirmSettlementUseCase {
@@ -78,10 +86,7 @@ export class ConfirmSettlementUseCase {
 
         const existing = await this.settlementRepository.findPendingBetweenMembers(fromMemberId, toMemberId)
         if (existing) {
-            if (existing.amount.toDecimal().equals(amount)) {
-                return { settlement: toResponse(existing) }
-            }
-            throw new SettlementAlreadyPendingError()
+            return resolveExistingPending(existing, amount)
         }
 
         const groupId = fromMember.groupId
@@ -147,7 +152,15 @@ export class ConfirmSettlementUseCase {
             pixCopyPaste,
         })
 
-        await this.settlementRepository.create(settlement)
+        const created = await this.settlementRepository.create(settlement)
+        if (!created) {
+            // A concurrent request inserted a PENDING settlement for this pair after our check above.
+            const concurrent = await this.settlementRepository.findPendingBetweenMembers(fromMemberId, toMemberId)
+            if (!concurrent) {
+                throw new ConcurrentModificationError()
+            }
+            return resolveExistingPending(concurrent, amount)
+        }
 
         return { settlement: toResponse(settlement) }
     }
