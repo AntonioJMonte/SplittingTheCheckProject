@@ -10,6 +10,13 @@ vi.mock('../../infra/database/prisma/prismaUserRepository', async () => {
     return makePrismaUserRepositoryMock(mockStore)
 })
 
+const blacklistStore = vi.hoisted(() => ({ tokens: new Set<string>() }))
+
+vi.mock('../../infra/cache/refresh-token-blacklist', async () => {
+    const { makeRefreshTokenBlacklistMock } = await import('../helpers/make-refresh-token-blacklist-mock')
+    return makeRefreshTokenBlacklistMock(blacklistStore)
+})
+
 describe('POST /refresh', () => {
   beforeEach(async () => {
     mockStore.items.splice(0)

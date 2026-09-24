@@ -13,7 +13,7 @@ export async function refreshToken(request: FastifyRequest, reply: FastifyReply)
     try {
         const { sub } = authService.verifyRefreshToken(token)
         const useCase = makeRefreshTokenUseCase()
-        const { user } = await useCase.execute({ userId: sub })
+        const { user } = await useCase.execute({ userId: sub, token })
         const accessToken = await reply.jwtSign({ sub: user.id })
         return reply.status(200).send({ accessToken })
     } catch (error) {

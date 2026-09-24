@@ -10,7 +10,9 @@ export const authService = {
     )
   },
 
-  verifyRefreshToken(token: string): { sub: string } {
-    return verify(token, env.JWT_REFRESH_SECRET) as { sub: string }
+  // `exp` vem do próprio JWT e define o TTL da entrada na blacklist: a revogação expira
+  // junto com o token, sem deixar chave órfã no Redis.
+  verifyRefreshToken(token: string): { sub: string; exp: number } {
+    return verify(token, env.JWT_REFRESH_SECRET) as { sub: string; exp: number }
   },
 }

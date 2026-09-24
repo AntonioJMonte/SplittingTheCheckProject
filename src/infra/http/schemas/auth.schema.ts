@@ -50,3 +50,15 @@ export const refreshTokenRouteSchema = {
         401: errorBody,
     },
 }
+
+export const logoutRouteSchema = {
+    summary: 'Encerrar sessão',
+    description:
+        'Revoga o refresh token do cookie e o remove do navegador. É idempotente: responde 204 mesmo ' +
+        'sem cookie, com token inválido ou com token já revogado. O access token em uso continua ' +
+        'valendo até expirar (máximo de 15 minutos).',
+    tags: ['Auth'],
+    response: {
+        204: z.null(),
+    },
+}
