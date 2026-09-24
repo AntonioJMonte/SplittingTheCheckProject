@@ -10,6 +10,9 @@ import {
     categorizeExpenseRouteSchema,
 } from '../schemas/expense.schema'
 
+// Sem verifyMembership de propósito (D-31): o middleware resolve a associação por :groupId,
+// que estas rotas não têm. O grupo só é conhecido depois de carregar a despesa, então a checagem
+// vive no use case — UpdateExpense, DeleteExpense e CategorizeExpense lançam NotGroupMemberError (403).
 export async function expenseRoutes(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>()
 

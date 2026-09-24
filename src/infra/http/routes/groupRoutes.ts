@@ -4,6 +4,7 @@ import { verifyJwt } from '../middlewares/verify-jwt'
 import { verifyMembership } from '../middlewares/verify-membership'
 import { createGroup } from '../controllers/create-group-controller'
 import { listGroups } from '../controllers/list-groups-controller'
+import { getGroup } from '../controllers/get-group-controller'
 import { updateGroup } from '../controllers/update-group-controller'
 import { deleteGroup } from '../controllers/delete-group-controller'
 import { addMember } from '../controllers/add-member-controller'
@@ -19,6 +20,7 @@ import { confirmSettlement } from '../controllers/confirm-settlement-controller'
 import {
     createGroupRouteSchema,
     listGroupsRouteSchema,
+    getGroupRouteSchema,
     updateGroupRouteSchema,
     deleteGroupRouteSchema,
     getGroupBalancesRouteSchema,
@@ -41,6 +43,7 @@ export async function groupRoutes(fastify: FastifyInstance) {
     app.post('/groups', { schema: createGroupRouteSchema }, createGroup)
     app.get('/groups', { schema: listGroupsRouteSchema }, listGroups)
 
+    app.get('/groups/:groupId', { schema: getGroupRouteSchema, preHandler: [verifyMembership] }, getGroup)
     app.patch('/groups/:groupId', { schema: updateGroupRouteSchema, preHandler: [verifyMembership] }, updateGroup)
     app.delete('/groups/:groupId', { schema: deleteGroupRouteSchema, preHandler: [verifyMembership] }, deleteGroup)
 

@@ -1,4 +1,5 @@
 import z from 'zod'
+import { memberWithUserShape } from './member.schema'
 
 const errorBody = z.object({ message: z.string() })
 
@@ -98,6 +99,22 @@ export const getGroupBalancesRouteSchema = {
         200: z.object({
             memberBalances: z.array(memberBalanceShape),
             transfers: z.array(transferShape),
+        }),
+        401: errorBody,
+        403: errorBody,
+        404: errorBody,
+    },
+}
+
+export const getGroupRouteSchema = {
+    summary: 'Consultar grupo',
+    description: 'Retorna os detalhes do grupo e a lista de membros com nome e email. Os saldos ficam em GET /groups/:groupId/balances.',
+    tags: ['Groups'],
+    security: [{ bearerAuth: [] }],
+    params: groupIdParam,
+    response: {
+        200: z.object({
+            group: groupShape.extend({ members: z.array(memberWithUserShape) }),
         }),
         401: errorBody,
         403: errorBody,

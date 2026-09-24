@@ -25,7 +25,7 @@ const memberShape = z.object({
     joinedAt: z.date(),
 })
 
-const memberWithUserShape = z.object({
+export const memberWithUserShape = z.object({
     id: z.uuid(),
     role: z.enum(['OWNER', 'MEMBER']),
     joinedAt: z.date(),

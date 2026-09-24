@@ -385,4 +385,95 @@ describe('Groups e2e', () => {
 
         expect(res.statusCode).toBe(403)
     })
+
+    it('GET /groups/:groupId → 200 returns group details with its members', async () => {
+        const { accessToken } = await registerAndAuth('Alice', 'alice@example.com')
+        const createRes = await app.inject({
+            method: 'POST',
+            url: '/groups',
+            headers: { Authorization: `Bearer ${accessToken}` },
+            payload: { name: 'Viagem Europa', description: 'Rateio da viagem', currency: 'EUR' },
+        })
+        const groupId = createRes.json().group.id
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/groups/${groupId}`,
+            headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        expect(res.statusCode).toBe(200)
+        const { group } = res.json()
+        expect(group).toMatchObject({
+            id: groupId,
+            name: 'Viagem Europa',
+            description: 'Rateio da viagem',
+            currency: 'EUR',
+        })
+        expect(group.members).toHaveLength(1)
+        expect(group.members[0]).toMatchObject({ role: 'OWNER', name: 'Alice', email: 'alice@example.com' })
+    })
+
+    it('GET /groups/:groupId → 200 does not return balances', async () => {
+        const { accessToken } = await registerAndAuth('Alice', 'alice@example.com')
+        const createRes = await app.inject({
+            method: 'POST',
+            url: '/groups',
+            headers: { Authorization: `Bearer ${accessToken}` },
+            payload: { name: 'Grupo Teste' },
+        })
+        const groupId = createRes.json().group.id
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/groups/${groupId}`,
+            headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        const { group } = res.json()
+        expect(group.memberBalances).toBeUndefined()
+        expect(group.transfers).toBeUndefined()
+    })
+
+    it('GET /groups/:groupId → 403 when requester is not a member', async () => {
+        const { accessToken: aliceToken } = await registerAndAuth('Alice', 'alice@example.com')
+        const { accessToken: bobToken } = await registerAndAuth('Bob', 'bob@example.com')
+
+        const createRes = await app.inject({
+            method: 'POST',
+            url: '/groups',
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { name: 'Grupo da Alice' },
+        })
+        const groupId = createRes.json().group.id
+
+        const res = await app.inject({
+            method: 'GET',
+            url: `/groups/${groupId}`,
+            headers: { Authorization: `Bearer ${bobToken}` },
+        })
+
+        expect(res.statusCode).toBe(403)
+    })
+
+    it('GET /groups/:groupId → 404 when group does not exist', async () => {
+        const { accessToken } = await registerAndAuth('Alice', 'alice@example.com')
+
+        const res = await app.inject({
+            method: 'GET',
+            url: '/groups/3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+            headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        expect(res.statusCode).toBe(404)
+    })
+
+    it('GET /groups/:groupId → 401 without authentication token', async () => {
+        const res = await app.inject({
+            method: 'GET',
+            url: '/groups/3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+        })
+
+        expect(res.statusCode).toBe(401)
+    })
 })
