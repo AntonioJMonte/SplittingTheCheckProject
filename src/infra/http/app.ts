@@ -7,13 +7,14 @@ import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from '@fas
 import { ZodError } from 'zod'
 import { DomainError } from '../../shared/errors/domain-error'
 import { env } from '../env'
+import { logger } from '../logger/logger'
 import { userRoutes } from './routes/userRoutes'
 import { groupRoutes } from './routes/groupRoutes'
 import { expenseRoutes } from './routes/expenseRoutes'
 import { settlementRoutes } from './routes/settlementRoutes'
 import { healthRoutes } from './routes/healthRoutes'
 
-export const app = fastify()
+export const app = fastify({ loggerInstance: logger })
 
 app.setValidatorCompiler(validatorCompiler)
 app.setSerializerCompiler(serializerCompiler)
@@ -89,7 +90,7 @@ app.register(expenseRoutes)
 app.register(settlementRoutes)
 app.register(healthRoutes)
 
-app.setErrorHandler((error, _, reply) => {
+app.setErrorHandler((error, request, reply) => {
   if (error instanceof ZodError) {
     return reply
       .status(400)
@@ -105,9 +106,9 @@ app.setErrorHandler((error, _, reply) => {
     return reply.status(err.statusCode).send({ message: err.message })
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    console.error(error)
-  }
+  // Sem guarda de NODE_ENV: 500 em produção precisa aparecer no log. O reqId do pino liga
+  // o stack trace à request que o causou.
+  request.log.error({ err: error }, 'Erro não tratado')
 
   return reply.status(500).send({ message: 'Internal server error.' })
 })
