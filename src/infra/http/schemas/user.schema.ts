@@ -1,9 +1,10 @@
 import z from 'zod'
-
-const errorBody = z.object({ message: z.string() })
+import { badRequest, notFound, unauthorized } from './shared.schema'
 
 export const updatePixKeyBody = z.object({
-    pixKey: z.string().min(1).nullable().optional(),
+    pixKey: z.string().min(1).nullable().optional().describe('Chave Pix em qualquer formato aceito pelo banco; null remove'),
+}).meta({
+    example: { pixKey: 'ana@example.com' },
 })
 
 export const updatePixKeyRouteSchema = {
@@ -13,8 +14,9 @@ export const updatePixKeyRouteSchema = {
     security: [{ bearerAuth: [] }],
     body: updatePixKeyBody,
     response: {
-        200: z.object({ message: z.string() }),
-        401: errorBody,
-        404: errorBody,
+        200: z.object({ message: z.string() }).describe('Chave Pix atualizada'),
+        400: badRequest,
+        401: unauthorized,
+        404: notFound,
     },
 }

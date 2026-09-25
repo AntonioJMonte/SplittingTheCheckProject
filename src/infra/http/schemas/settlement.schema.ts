@@ -1,11 +1,16 @@
 import z from 'zod'
-
-const errorBody = z.object({ message: z.string() })
+import { badRequest, conflict, forbidden, notFound, unauthorized, unprocessableEntity } from './shared.schema'
 
 export const confirmSettlementBody = z.object({
-    fromMemberId: z.uuid(),
-    toMemberId: z.uuid(),
-    amount: z.number().positive(),
+    fromMemberId: z.uuid().describe('Membro devedor — precisa ser o usuário autenticado'),
+    toMemberId: z.uuid().describe('Membro credor'),
+    amount: z.number().positive().describe('Não pode exceder a dívida calculada'),
+}).meta({
+    example: {
+        fromMemberId: '3f2504e0-4f89-41d3-9a0c-0305e82c3302',
+        toMemberId: '3f2504e0-4f89-41d3-9a0c-0305e82c3303',
+        amount: 90.25,
+    },
 })
 
 export const settlementIdParam = z.object({
@@ -39,10 +44,11 @@ export const computeSettlementsRouteSchema = {
     security: [{ bearerAuth: [] }],
     params: groupIdParam,
     response: {
-        200: z.object({ settlements: z.array(computedSettlementShape) }),
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        200: z.object({ settlements: z.array(computedSettlementShape) }).describe('Transferências mínimas sugeridas'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -54,12 +60,13 @@ export const confirmSettlementRouteSchema = {
     params: groupIdParam,
     body: confirmSettlementBody,
     response: {
-        201: z.object({ settlement: settlementShape }),
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
-        409: errorBody,
-        422: errorBody,
+        201: z.object({ settlement: settlementShape }).describe('Acerto registrado como PENDING'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
+        409: conflict,
+        422: unprocessableEntity,
     },
 }
 
@@ -70,10 +77,11 @@ export const acknowledgeSettlementRouteSchema = {
     security: [{ bearerAuth: [] }],
     params: settlementIdParam,
     response: {
-        200: z.object({ settlement: settlementShape }),
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
-        409: errorBody,
+        200: z.object({ settlement: settlementShape }).describe('Acerto confirmado'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
+        409: conflict,
     },
 }

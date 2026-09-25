@@ -1,13 +1,16 @@
 import z from 'zod'
-
-const errorBody = z.object({ message: z.string() })
+import { badRequest, forbidden, notFound, unauthorized } from './shared.schema'
 
 export const addMemberBody = z.object({
-    userId: z.uuid(),
+    userId: z.uuid().describe('Id de um usuário já registrado'),
+}).meta({
+    example: { userId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301' },
 })
 
 export const updateMemberRoleBody = z.object({
     newRole: z.enum(['OWNER', 'MEMBER']),
+}).meta({
+    example: { newRole: 'OWNER' },
 })
 
 export const memberIdParam = z.object({
@@ -41,11 +44,11 @@ export const addMemberRouteSchema = {
     params: groupIdParam,
     body: addMemberBody,
     response: {
-        201: z.object({ member: memberShape }),
-        400: errorBody,
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        201: z.object({ member: memberShape }).describe('Membro adicionado'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -56,9 +59,11 @@ export const removeMemberRouteSchema = {
     security: [{ bearerAuth: [] }],
     params: groupAndMemberParams,
     response: {
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        204: z.null().describe('Membro removido'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -69,8 +74,11 @@ export const leaveGroupRouteSchema = {
     security: [{ bearerAuth: [] }],
     params: groupIdParam,
     response: {
-        401: errorBody,
-        403: errorBody,
+        204: z.null().describe('Saída concluída'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -81,10 +89,11 @@ export const listMembersRouteSchema = {
     security: [{ bearerAuth: [] }],
     params: groupIdParam,
     response: {
-        200: z.object({ members: z.array(memberWithUserShape) }),
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        200: z.object({ members: z.array(memberWithUserShape) }).describe('Membros do grupo'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -96,10 +105,10 @@ export const updateMemberRoleRouteSchema = {
     params: groupAndMemberParams,
     body: updateMemberRoleBody,
     response: {
-        200: z.object({ memberId: z.uuid(), role: z.enum(['OWNER', 'MEMBER']) }),
-        400: errorBody,
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        200: z.object({ memberId: z.uuid(), role: z.enum(['OWNER', 'MEMBER']) }).describe('Papel atualizado'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }

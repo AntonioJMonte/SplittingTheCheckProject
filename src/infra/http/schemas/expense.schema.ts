@@ -1,24 +1,34 @@
 import z from 'zod'
 import { EXPENSE_CATEGORIES } from '../../../domain/value-objects/expense-category'
-
-const errorBody = z.object({ message: z.string() })
+import { badRequest, forbidden, notFound, unauthorized } from './shared.schema'
 
 const expenseCategory = z.enum(EXPENSE_CATEGORIES)
 
 const shareInput = z.object({
     memberId: z.uuid(),
-    amount: z.number().positive().optional(),
-    percentage: z.number().positive().optional(),
+    amount: z.number().positive().optional().describe('Valor fixo da parte; use com splitMethod FIXED'),
+    percentage: z.number().positive().optional().describe('Percentual da parte; use com splitMethod PERCENTAGE'),
 })
 
 export const createExpenseBody = z.object({
-    description: z.string().min(1),
+    description: z.string().min(1).describe('Texto usado também pela categorização automática'),
     amount: z.number().positive(),
-    payerId: z.uuid(),
-    occurredAt: z.iso.datetime().optional(),
+    payerId: z.uuid().describe('Id do usuário que pagou'),
+    occurredAt: z.iso.datetime().optional().describe('Data da despesa em ISO 8601; padrão é agora'),
     splitMethod: z.enum(['EQUAL', 'FIXED', 'PERCENTAGE']),
-    shares: z.array(shareInput).min(1),
-    category: expenseCategory.optional(),
+    shares: z.array(shareInput).min(1).describe('Uma entrada por membro que participa do rateio'),
+    category: expenseCategory.optional().describe('Informar a categoria desliga a categorização automática'),
+}).meta({
+    example: {
+        description: 'Jantar no restaurante',
+        amount: 180.5,
+        payerId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+        splitMethod: 'EQUAL',
+        shares: [
+            { memberId: '3f2504e0-4f89-41d3-9a0c-0305e82c3302' },
+            { memberId: '3f2504e0-4f89-41d3-9a0c-0305e82c3303' },
+        ],
+    },
 })
 
 export const updateExpenseBody = z.object({
@@ -27,6 +37,8 @@ export const updateExpenseBody = z.object({
     splitMethod: z.enum(['EQUAL', 'FIXED', 'PERCENTAGE']).optional(),
     shares: z.array(shareInput).min(1).optional(),
     category: expenseCategory.optional(),
+}).meta({
+    example: { description: 'Jantar no restaurante japonês', amount: 210 },
 })
 
 export const expenseIdParam = z.object({
@@ -34,10 +46,10 @@ export const expenseIdParam = z.object({
 })
 
 export const listExpensesQuery = z.object({
-    view: z.enum(['all', 'involved', 'paid', 'pending']).optional(),
+    view: z.enum(['all', 'involved', 'paid', 'pending']).optional().describe('Recorte da lista; padrão all'),
     category: expenseCategory.optional(),
-    startDate: z.string().optional(),
-    endDate: z.string().optional(),
+    startDate: z.string().optional().describe('Data inicial em ISO 8601'),
+    endDate: z.string().optional().describe('Data final em ISO 8601'),
     minAmount: z.coerce.number().positive().optional(),
     maxAmount: z.coerce.number().positive().optional(),
     page: z.coerce.number().int().positive().optional(),
@@ -72,11 +84,11 @@ export const createExpenseRouteSchema = {
     params: groupIdParam,
     body: createExpenseBody,
     response: {
-        201: z.object({ expense: expenseShape }),
-        400: errorBody,
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        201: z.object({ expense: expenseShape }).describe('Despesa criada'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -91,10 +103,11 @@ export const listExpensesRouteSchema = {
         200: z.object({
             expenses: z.array(expenseShape),
             total: z.number().int(),
-        }),
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        }).describe('Despesas do grupo e o total sem paginação'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -106,11 +119,11 @@ export const updateExpenseRouteSchema = {
     params: expenseIdParam,
     body: updateExpenseBody,
     response: {
-        200: z.object({ expense: expenseShape }),
-        400: errorBody,
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        200: z.object({ expense: expenseShape }).describe('Despesa atualizada'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -121,10 +134,11 @@ export const categorizeExpenseRouteSchema = {
     security: [{ bearerAuth: [] }],
     params: expenseIdParam,
     response: {
-        200: z.object({ expense: expenseShape }),
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        200: z.object({ expense: expenseShape }).describe('Despesa com a categoria recalculada'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }
 
@@ -135,8 +149,10 @@ export const deleteExpenseRouteSchema = {
     security: [{ bearerAuth: [] }],
     params: expenseIdParam,
     response: {
-        401: errorBody,
-        403: errorBody,
-        404: errorBody,
+        204: z.null().describe('Despesa excluída'),
+        400: badRequest,
+        401: unauthorized,
+        403: forbidden,
+        404: notFound,
     },
 }

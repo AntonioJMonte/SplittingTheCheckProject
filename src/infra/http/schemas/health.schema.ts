@@ -15,7 +15,7 @@ export const healthRouteSchema = {
     description: 'Checa a conexão com Postgres e Redis. Não exige autenticação; é usado pelo healthcheck do Docker Compose. Responde 503 se alguma dependência estiver fora.',
     tags: ['Health'],
     response: {
-        200: healthBody,
-        503: healthBody,
+        200: healthBody.describe('API e dependências no ar'),
+        503: healthBody.describe('Alguma dependência está fora'),
     },
 }
