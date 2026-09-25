@@ -240,14 +240,35 @@ Veja [`.env.example`](.env.example) para a lista completa. As principais:
 
 ## Documentação da API
 
-A API é auto-documentada via OpenAPI em `/docs` quando o servidor está rodando. Principais grupos de endpoints:
+A API é auto-documentada via OpenAPI em `/docs` quando o servidor está rodando — com exemplos de
+corpo, respostas de erro e autenticação `bearerAuth`. Rotas disponíveis:
 
-- `POST /auth/register` · `POST /auth/login` · `POST /auth/refresh`
-- `POST /groups` · `GET /groups` · `GET /groups/:id`
-- `POST /groups/:id/members` · `DELETE /groups/:id/members/:memberId`
-- `POST /groups/:id/expenses` · `GET /groups/:id/expenses` · `PATCH /expenses/:id`
-- `GET /groups/:id/balances`
-- `POST /groups/:id/settlements/compute` · `POST /settlements`
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/register` | Cria a conta |
+| `POST` | `/auth` | Login; devolve access token e cookie `refreshToken` |
+| `POST` | `/refresh` | Renova o access token a partir do cookie |
+| `POST` | `/logout` | Revoga o refresh token (idempotente) |
+| `PATCH` | `/users/pix-key` | Define ou remove a chave Pix |
+| `POST` · `GET` | `/groups` | Cria grupo · lista os grupos do usuário |
+| `GET` · `PATCH` · `DELETE` | `/groups/:groupId` | Detalhes com membros · atualiza · exclui |
+| `GET` | `/groups/:groupId/balances` | Saldo por membro e transferências sugeridas |
+| `POST` · `GET` | `/groups/:groupId/members` | Adiciona membro · lista membros |
+| `DELETE` | `/groups/:groupId/members/:memberId` | Remove membro (requer OWNER) |
+| `PATCH` | `/groups/:groupId/members/:memberId/role` | Promove ou rebaixa um membro |
+| `DELETE` | `/groups/:groupId/leave` | Sai do grupo |
+| `POST` · `GET` | `/groups/:groupId/expenses` | Lança despesa · lista com filtros e paginação |
+| `PATCH` · `DELETE` | `/expenses/:expenseId` | Edita · exclui (pagador ou OWNER) |
+| `POST` | `/expenses/:expenseId/categorize` | Recategoriza via regras → cache → LLM |
+| `GET` | `/groups/:groupId/settlements/compute` | Transferências mínimas (DebtMinimizer) |
+| `POST` | `/groups/:groupId/settlements` | Devedor registra o pagamento; gera copia-e-cola Pix |
+| `PATCH` | `/settlements/:settlementId/acknowledge` | Credor confirma o recebimento |
+| `GET` | `/health` | Estado de Postgres e Redis; 503 se alguma cair |
+
+As rotas de autenticação não usam o prefixo `/auth/` do documento original do desafio
+(`/register` em vez de `/auth/register`, e assim por diante), e o registro de acertos é
+`POST /groups/:groupId/settlements` em vez de `POST /settlements` — assim a rota carrega o
+`:groupId` que o middleware de associação precisa. Os nomes acima são os que valem.
 
 WebSocket disponível em `ws://localhost:3333` com autenticação via JWT no handshake.
 
