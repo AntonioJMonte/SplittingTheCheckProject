@@ -2,13 +2,16 @@ import { Server as HttpServer } from 'node:http'
 import { Server as SocketServer } from 'socket.io'
 import { createAdapter } from '@socket.io/redis-adapter'
 import { PrismaMemberRepository } from '../database/prisma/prismaMemberRepository'
+import { env } from '../env'
 import { createRedisClient } from '../redis/redis-client'
 import { wsAuthMiddleware } from './auth-middleware'
 import { setIo } from './io'
 
 export function createSocketServer(httpServer: HttpServer): SocketServer {
     const ioServer = new SocketServer(httpServer, {
-        cors: { origin: '*' },
+        // D-60: mesma allowlist do HTTP. Sem `credentials` porque o handshake autentica
+        // pelo token em `socket.handshake.auth`, nunca por cookie.
+        cors: { origin: env.CORS_ORIGIN },
     })
 
     const pubClient = createRedisClient()

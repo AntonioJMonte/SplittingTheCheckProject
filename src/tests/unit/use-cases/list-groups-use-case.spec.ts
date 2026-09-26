@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ListGroupsUseCase } from '../../../application/use-cases/groups/list-groups-use-case'
-import { InMemoryGroupRepository } from '../../../infra/database/repositories/in-memory-group-repository'
+import { InMemoryGroupRepository } from '../../doubles/in-memory-group-repository'
 import { Group } from '../../../domain/entities/group'
 
 describe('ListGroupsUseCase', () => {

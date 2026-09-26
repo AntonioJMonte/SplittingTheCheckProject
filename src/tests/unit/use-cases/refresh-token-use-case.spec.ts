@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { RefreshTokenUseCase } from '../../../application/use-cases/auth/refresh-token-use-case'
-import { InMemoryUserRepository } from '../../../infra/database/repositories/in-memory-user-repository'
+import { InMemoryUserRepository } from '../../doubles/in-memory-user-repository'
 import { User } from '../../../domain/entities/user'
 import { InvalidCredentialsError } from '../../../shared/errors/invalid-credentials-error'
 import { FakeRefreshTokenRevoker } from '../../helpers/fake-refresh-token-revoker'

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { RegisterUserUseCase } from '../../../application/use-cases/auth/register-use-case'
-import { InMemoryUserRepository } from '../../../infra/database/repositories/in-memory-user-repository'
+import { InMemoryUserRepository } from '../../doubles/in-memory-user-repository'
 import { UserAlreadyExistError } from '../../../shared/errors/user-already-exist-error'
 
 describe('RegisterUserUseCase', () => {

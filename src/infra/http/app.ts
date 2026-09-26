@@ -1,6 +1,7 @@
 import fastify from 'fastify'
 import fastifyJwt from '@fastify/jwt'
 import fastifyCookie from '@fastify/cookie'
+import fastifyCors from '@fastify/cors'
 import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
 import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from '@fastify/type-provider-zod'
@@ -27,6 +28,14 @@ app.setSchemaErrorFormatter((errors, dataVar) => {
   err.statusCode = 400
   err.validation = errors
   return err
+})
+
+// D-58: registrado antes das rotas para que o preflight seja respondido em todas elas.
+// `credentials` é obrigatório porque o refresh token trafega em cookie httpOnly; como o
+// navegador recusa `*` junto de credenciais, a origem vem da allowlist de CORS_ORIGIN.
+app.register(fastifyCors, {
+  origin: env.CORS_ORIGIN,
+  credentials: true,
 })
 
 app.register(fastifySwagger, {

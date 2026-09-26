@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { JsonWebTokenError } from 'jsonwebtoken'
 import { authService } from '../services/authService'
 import { makeLogoutUseCase } from '../../factories/make-logout-use-case'
+import { refreshTokenCookieOptions } from '../refresh-token-cookie'
 
 // Idempotente (D-38): sem cookie, com token adulterado ou com token já expirado não há o que
 // revogar, e a resposta continua 204 — repetir o logout nunca vira erro. Só uma falha ao gravar
@@ -20,5 +21,5 @@ export async function logoutUser(request: FastifyRequest, reply: FastifyReply) {
         }
     }
 
-    return reply.clearCookie('refreshToken', { path: '/' }).status(204).send()
+    return reply.clearCookie('refreshToken', refreshTokenCookieOptions).status(204).send()
 }

@@ -11,6 +11,16 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  // Allowlist de origens do navegador, separadas por vírgula. O cookie de refresh obriga
+  // `credentials: true` no CORS, e com credenciais o navegador recusa `*` — por isso lista
+  // explícita. Uma lista que resolve para vazio é erro de configuração, não "CORS desligado".
+  CORS_ORIGIN: z
+    .string()
+    .default('http://localhost:5173')
+    .transform(value => value.split(',').map(origin => origin.trim()).filter(Boolean))
+    .refine(origins => origins.length > 0, {
+      message: 'precisa listar ao menos uma origem (separadas por vírgula)',
+    }),
   ANTHROPIC_API_KEY: z.string().optional().transform(value => value || undefined),
 })
 

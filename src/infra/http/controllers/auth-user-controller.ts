@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import type z from 'zod'
 import { InvalidCredentialsError } from '../../../shared/errors/invalid-credentials-error'
 import { authService } from '../services/authService'
+import { refreshTokenCookieOptions } from '../refresh-token-cookie'
 import { makeAuthUserUseCase } from '../../factories/make-auth-user-use-case'
 import type { authBody } from '../schemas/auth.schema'
 
@@ -19,12 +20,7 @@ export async function authUser(request: FastifyRequest<{ Body: AuthBody }>, repl
 
         return reply
             .status(200)
-            .setCookie('refreshToken', refreshToken, {
-                path: '/',
-                httpOnly: true,
-                secure: true,
-                sameSite: true,
-            })
+            .setCookie('refreshToken', refreshToken, refreshTokenCookieOptions)
             .send({ accessToken })
     } catch (error) {
         if (error instanceof InvalidCredentialsError) {

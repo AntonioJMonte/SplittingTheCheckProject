@@ -1,8 +1,8 @@
 import Decimal from 'decimal.js'
-import { ExpenseRepository, FindManyByGroupParams, FindManyByGroupResult } from '../../../application/repositories/expense-repository'
-import { Expense } from '../../../domain/entities/expense'
-import { Settlement } from '../../../domain/entities/settlement'
-import { ExpenseCategory } from '../../../domain/value-objects/expense-category'
+import { ExpenseRepository, FindManyByGroupParams, FindManyByGroupResult } from '../../application/repositories/expense-repository'
+import { Expense } from '../../domain/entities/expense'
+import { Settlement } from '../../domain/entities/settlement'
+import { ExpenseCategory } from '../../domain/value-objects/expense-category'
 
 export class InMemoryExpenseRepository implements ExpenseRepository {
     public items: Expense[] = []

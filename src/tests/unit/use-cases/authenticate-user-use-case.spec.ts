@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { hash } from 'bcryptjs'
 import { AuthUserUseCase } from '../../../application/use-cases/auth/authenticate-user-use-case'
 import { User } from '../../../domain/entities/user'
-import { InMemoryUserRepository } from '../../../infra/database/repositories/in-memory-user-repository'
+import { InMemoryUserRepository } from '../../doubles/in-memory-user-repository'
 import { InvalidCredentialsError } from '../../../shared/errors/invalid-credentials-error'
 
 describe('AuthUserUseCase', () => {

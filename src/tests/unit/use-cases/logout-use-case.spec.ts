@@ -49,6 +49,22 @@ describe('LogoutUseCase', () => {
     expect(revoker.revoked.size).toBe(1)
     expect(revoker.revoked.get('token-abc')).toBe(1800)
   })
+  it('should not revoke when the token carries no exp claim', async () => {
+    const { revoked } = await sut.execute({ token: 'token-sem-exp' })
+
+    expect(revoked).toBe(false)
+    expect(revoker.revoked.size).toBe(0)
+  })
+
+  it('should not revoke when exp is not a finite number', async () => {
+    for (const expiresAt of [NaN, Infinity, -Infinity]) {
+      const { revoked } = await sut.execute({ token: 'token-estranho', expiresAt })
+      expect(revoked).toBe(false)
+    }
+
+    expect(revoker.revoked.size).toBe(0)
+  })
+
 
   it('should propagate a revoker failure instead of reporting success', async () => {
     const failing = new FakeRefreshTokenRevoker()

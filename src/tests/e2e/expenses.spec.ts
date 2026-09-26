@@ -374,4 +374,47 @@ describe('Expenses e2e', () => {
             expect(res.statusCode).toBe(401)
         })
     })
+
+    it('POST /groups/:groupId/expenses → 201 splitting an amount that does not divide evenly', async () => {
+        const { accessToken, userId, groupId } = await setupGroupWithMember()
+
+        const { userId: bobId } = await registerAndAuth('Bob', 'bob@example.com')
+        const { userId: carolId } = await registerAndAuth('Carol', 'carol@example.com')
+        for (const id of [bobId, carolId]) {
+            await app.inject({
+                method: 'POST',
+                url: `/groups/${groupId}/members`,
+                headers: { Authorization: `Bearer ${accessToken}` },
+                payload: { userId: id },
+            })
+        }
+
+        const membersRes = await app.inject({
+            method: 'GET',
+            url: `/groups/${groupId}/members`,
+            headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        const memberIds = membersRes.json().members.map((m: { id: string }) => m.id)
+        expect(memberIds).toHaveLength(3)
+
+        const res = await app.inject({
+            method: 'POST',
+            url: `/groups/${groupId}/expenses`,
+            headers: { Authorization: `Bearer ${accessToken}` },
+            payload: {
+                description: 'Conta do bar',
+                amount: 100,
+                payerId: userId,
+                splitMethod: 'EQUAL',
+                shares: memberIds.map((id: string) => ({ memberId: id })),
+            },
+        })
+
+        expect(res.statusCode).toBe(201)
+        const shares = res.json().expense.shares as Array<{ amount: string }>
+        expect(shares.map(s => s.amount).sort()).toEqual(['33.33', '33.33', '33.34'])
+
+        const total = shares.reduce((acc, s) => acc + Number(s.amount), 0)
+        expect(total).toBeCloseTo(100, 10)
+    })
 })

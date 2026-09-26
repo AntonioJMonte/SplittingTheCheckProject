@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { UpdatePixKeyUseCase } from '../../../application/use-cases/users/update-pix-key-use-case'
-import { InMemoryUserRepository } from '../../../infra/database/repositories/in-memory-user-repository'
+import { InMemoryUserRepository } from '../../doubles/in-memory-user-repository'
 import { User } from '../../../domain/entities/user'
 import { AppError } from '../../../shared/errors/app-error'
 

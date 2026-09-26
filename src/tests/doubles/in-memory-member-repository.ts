@@ -1,5 +1,5 @@
-import { MemberRepository, MembersWithUser } from '../../../application/repositories/member-repository'
-import { Member } from '../../../domain/entities/member'
+import { MemberRepository, MembersWithUser } from '../../application/repositories/member-repository'
+import { Member } from '../../domain/entities/member'
 
 export class InMemoryMemberRepository implements MemberRepository {
     public items: Member[] = []

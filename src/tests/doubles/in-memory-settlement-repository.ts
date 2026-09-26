@@ -1,5 +1,5 @@
-import { SettlementRepository } from '../../../application/repositories/settlement-repository'
-import { Settlement, SettlementStatus } from '../../../domain/entities/settlement'
+import { SettlementRepository } from '../../application/repositories/settlement-repository'
+import { Settlement, SettlementStatus } from '../../domain/entities/settlement'
 
 interface SnapshotChanges {
     status?: SettlementStatus

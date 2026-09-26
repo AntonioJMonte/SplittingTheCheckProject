@@ -67,7 +67,10 @@ vi.mock('../../infra/database/prisma/prismaMemberRepository', () => ({
             const idx = stores.members.findIndex((m: any) => m.id === memberId)
             if (idx !== -1) stores.members.splice(idx, 1)
         }
-        async updateRole() {}
+        async updateRole(memberId: string, role: string) {
+            const item = stores.members.find((m: any) => m.id === memberId)
+            if (item) (item as any).role = role
+        }
     },
 }))
 
@@ -475,5 +478,146 @@ describe('Groups e2e', () => {
         })
 
         expect(res.statusCode).toBe(401)
+    })
+
+    it('DELETE /groups/:groupId/members/:memberId → 204 owner removes a member', async () => {
+        const { accessToken: aliceToken } = await registerAndAuth('Alice', 'alice@example.com')
+        const { userId: bobUserId } = await registerAndAuth('Bob', 'bob@example.com')
+
+        const createRes = await app.inject({
+            method: 'POST',
+            url: '/groups',
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { name: 'Grupo' },
+        })
+        const groupId = createRes.json().group.id
+
+        const addRes = await app.inject({
+            method: 'POST',
+            url: `/groups/${groupId}/members`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { userId: bobUserId },
+        })
+        const bobMemberId = addRes.json().member.id
+
+        const res = await app.inject({
+            method: 'DELETE',
+            url: `/groups/${groupId}/members/${bobMemberId}`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+        })
+
+        expect(res.statusCode).toBe(204)
+        expect(res.body).toBe('')
+
+        const membersRes = await app.inject({
+            method: 'GET',
+            url: `/groups/${groupId}/members`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+        })
+        expect(membersRes.json().members).toHaveLength(1)
+    })
+
+    it('PATCH /groups/:groupId/members/:memberId/role → 200 promotes a member to OWNER', async () => {
+        const { accessToken: aliceToken } = await registerAndAuth('Alice', 'alice@example.com')
+        const { userId: bobUserId } = await registerAndAuth('Bob', 'bob@example.com')
+
+        const createRes = await app.inject({
+            method: 'POST',
+            url: '/groups',
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { name: 'Grupo' },
+        })
+        const groupId = createRes.json().group.id
+
+        const addRes = await app.inject({
+            method: 'POST',
+            url: `/groups/${groupId}/members`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { userId: bobUserId },
+        })
+        const bobMemberId = addRes.json().member.id
+
+        const res = await app.inject({
+            method: 'PATCH',
+            url: `/groups/${groupId}/members/${bobMemberId}/role`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { newRole: 'OWNER' },
+        })
+
+        expect(res.statusCode).toBe(200)
+        expect(res.json()).toEqual({ memberId: bobMemberId, role: 'OWNER' })
+
+        const membersRes = await app.inject({
+            method: 'GET',
+            url: `/groups/${groupId}/members`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+        })
+        const bob = membersRes.json().members.find((m: { id: string }) => m.id === bobMemberId)
+        expect(bob.role).toBe('OWNER')
+    })
+
+    it('PATCH /groups/:groupId/members/:memberId/role → 403 when requester is not the owner', async () => {
+        const { accessToken: aliceToken } = await registerAndAuth('Alice', 'alice@example.com')
+        const { accessToken: bobToken, userId: bobUserId } = await registerAndAuth('Bob', 'bob@example.com')
+
+        const createRes = await app.inject({
+            method: 'POST',
+            url: '/groups',
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { name: 'Grupo' },
+        })
+        const groupId = createRes.json().group.id
+
+        const addRes = await app.inject({
+            method: 'POST',
+            url: `/groups/${groupId}/members`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { userId: bobUserId },
+        })
+        const bobMemberId = addRes.json().member.id
+
+        const res = await app.inject({
+            method: 'PATCH',
+            url: `/groups/${groupId}/members/${bobMemberId}/role`,
+            headers: { Authorization: `Bearer ${bobToken}` },
+            payload: { newRole: 'OWNER' },
+        })
+
+        expect(res.statusCode).toBe(403)
+    })
+
+    it('DELETE /groups/:groupId/leave → 204 a plain member leaves the group', async () => {
+        const { accessToken: aliceToken } = await registerAndAuth('Alice', 'alice@example.com')
+        const { accessToken: bobToken, userId: bobUserId } = await registerAndAuth('Bob', 'bob@example.com')
+
+        const createRes = await app.inject({
+            method: 'POST',
+            url: '/groups',
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { name: 'Grupo' },
+        })
+        const groupId = createRes.json().group.id
+
+        await app.inject({
+            method: 'POST',
+            url: `/groups/${groupId}/members`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+            payload: { userId: bobUserId },
+        })
+
+        const res = await app.inject({
+            method: 'DELETE',
+            url: `/groups/${groupId}/leave`,
+            headers: { Authorization: `Bearer ${bobToken}` },
+        })
+
+        expect(res.statusCode).toBe(204)
+
+        const membersRes = await app.inject({
+            method: 'GET',
+            url: `/groups/${groupId}/members`,
+            headers: { Authorization: `Bearer ${aliceToken}` },
+        })
+        expect(membersRes.json().members).toHaveLength(1)
     })
 })

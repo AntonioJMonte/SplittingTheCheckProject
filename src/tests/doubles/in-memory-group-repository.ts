@@ -1,5 +1,5 @@
-import { GroupRepository } from '../../../application/repositories/group-repository'
-import { Group } from '../../../domain/entities/group'
+import { GroupRepository } from '../../application/repositories/group-repository'
+import { Group } from '../../domain/entities/group'
 
 export class InMemoryGroupRepository implements GroupRepository {
     public items: Group[] = []
