@@ -1,0 +1,13 @@
+$kind: http-request
+name: PATCH /users/pix-key — atualiza chave Pix
+url: "{{baseUrl}}/users/pix-key"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "pixKey": "antonio@example.com"
+    }
+order: 1000

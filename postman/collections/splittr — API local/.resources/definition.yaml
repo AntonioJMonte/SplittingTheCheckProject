@@ -1,0 +1,22 @@
+$kind: collection
+description: |-
+  Collection de trabalho do splittr (http://localhost:3333).
+
+  Variáveis: baseUrl, accessToken, groupId, memberId, expenseId, settlementId.
+
+  O accessToken é salvo automaticamente pelos scripts de POST /register e POST /auth. O refreshToken vive em cookie httpOnly gerenciado pelo Postman (funciona no app desktop).
+
+  Os corpos de requisição são exemplos e devem ser conferidos contra http://localhost:3333/docs/json.
+variables:
+  baseUrl: http://localhost:3333
+  accessToken: ""
+  groupId: ""
+  memberId: ""
+  expenseId: ""
+  settlementId: ""
+auth:
+  - id: 59bef5b5-4505-4d6a-b6ad-345ed31222b8
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{accessToken}}"

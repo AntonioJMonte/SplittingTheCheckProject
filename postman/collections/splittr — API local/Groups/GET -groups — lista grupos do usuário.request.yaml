@@ -1,0 +1,5 @@
+$kind: http-request
+name: GET /groups — lista grupos do usuário
+url: "{{baseUrl}}/groups"
+method: GET
+order: 2000

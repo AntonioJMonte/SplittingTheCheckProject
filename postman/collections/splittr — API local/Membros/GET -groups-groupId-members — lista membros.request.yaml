@@ -1,0 +1,5 @@
+$kind: http-request
+name: GET /groups/:groupId/members — lista membros
+url: "{{baseUrl}}/groups/{{groupId}}/members"
+method: GET
+order: 1000

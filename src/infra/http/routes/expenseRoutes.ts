@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { ZodTypeProvider } from '@fastify/type-provider-zod'
 import { verifyJwt } from '../middlewares/verify-jwt'
+import { categorizeRateLimit } from '../rate-limit'
 import { updateExpense } from '../controllers/update-expense-controller'
 import { deleteExpense } from '../controllers/delete-expense-controller'
 import { categorizeExpense } from '../controllers/categorize-expense-controller'
@@ -20,5 +21,5 @@ export async function expenseRoutes(fastify: FastifyInstance) {
 
     app.patch('/expenses/:expenseId', { schema: updateExpenseRouteSchema }, updateExpense)
     app.delete('/expenses/:expenseId', { schema: deleteExpenseRouteSchema }, deleteExpense)
-    app.post('/expenses/:expenseId/categorize', { schema: categorizeExpenseRouteSchema }, categorizeExpense)
+    app.post('/expenses/:expenseId/categorize', { schema: categorizeExpenseRouteSchema, config: { rateLimit: categorizeRateLimit } }, categorizeExpense)
 }

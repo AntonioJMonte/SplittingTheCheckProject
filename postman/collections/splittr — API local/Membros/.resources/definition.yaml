@@ -1,0 +1,3 @@
+$kind: collection
+description: Requer JWT + membership.
+order: 4000

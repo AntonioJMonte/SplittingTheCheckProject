@@ -1,0 +1,14 @@
+$kind: http-request
+name: PATCH /groups/:groupId — atualiza grupo
+url: "{{baseUrl}}/groups/{{groupId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "República 2026",
+      "description": "Contas da casa"
+    }
+order: 4000

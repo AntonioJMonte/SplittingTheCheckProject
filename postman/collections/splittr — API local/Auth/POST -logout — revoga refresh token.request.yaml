@@ -1,0 +1,7 @@
+$kind: http-request
+name: POST /logout — revoga refresh token
+url: "{{baseUrl}}/logout"
+method: POST
+auth:
+  type: noauth
+order: 4000

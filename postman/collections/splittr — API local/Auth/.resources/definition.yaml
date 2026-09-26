@@ -1,0 +1,3 @@
+$kind: collection
+description: Rotas públicas. /logout é público por decisão (D-38).
+order: 1000

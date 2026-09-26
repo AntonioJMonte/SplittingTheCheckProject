@@ -1,0 +1,7 @@
+$kind: http-request
+name: GET /docs — Swagger UI
+url: "{{baseUrl}}/docs"
+method: GET
+auth:
+  type: noauth
+order: 2000

@@ -1,0 +1,13 @@
+$kind: http-request
+name: POST /groups/:groupId/members — adiciona membro
+url: "{{baseUrl}}/groups/{{groupId}}/members"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "bruno@example.com"
+    }
+order: 2000

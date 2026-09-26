@@ -1,0 +1,39 @@
+$kind: http-request
+name: POST /groups/:groupId/expenses — lança despesa
+url: "{{baseUrl}}/groups/{{groupId}}/expenses"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |
+    {
+      "description": "Areia da caixa de areia do gato",
+      "amount": 80.00,
+      "payerId": "f544c755-1ab3-40bd-b922-cba419cd9016",
+      "splitMethod": "EQUAL",
+      "shares": [
+        { "memberId": "a1270fa3-a1e3-4128-9b17-45c517c91416" },
+        { "memberId": "e4cb2e21-d928-47c9-895f-a89e9c055dcb" }
+      ],
+      "occurredAt": "2026-09-26T19:00:00.000Z"
+    }
+scripts:
+  - type: afterResponse
+    code: "const body = pm.response.json()\r
+
+      const id = body.expense?.id || body.id\r
+
+      if (id) {\r
+
+      \  pm.collectionVariables.set('expenseId', id)\r
+
+      \  console.log('expenseId salvo:', id)\r
+
+      } else {\r
+
+      \  console.log('id não encontrado:', JSON.stringify(body))\r
+
+      }"
+    language: text/javascript
+order: 1000

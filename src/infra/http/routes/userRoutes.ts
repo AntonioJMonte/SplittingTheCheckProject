@@ -6,15 +6,16 @@ import { refreshToken } from '../controllers/refresh-token-controller'
 import { logoutUser } from '../controllers/auth-logout-user-controller'
 import { updatePixKey } from '../controllers/update-pix-key-controller'
 import { verifyJwt } from '../middlewares/verify-jwt'
+import { authRateLimit } from '../rate-limit'
 import { registerRouteSchema, authRouteSchema, refreshTokenRouteSchema, logoutRouteSchema } from '../schemas/auth.schema'
 import { updatePixKeyRouteSchema } from '../schemas/user.schema'
 
 export async function userRoutes(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>()
 
-    app.post('/register', { schema: registerRouteSchema }, registerUser)
-    app.post('/auth', { schema: authRouteSchema }, authUser)
-    app.post('/refresh', { schema: refreshTokenRouteSchema }, refreshToken)
+    app.post('/register', { schema: registerRouteSchema, config: { rateLimit: authRateLimit } }, registerUser)
+    app.post('/auth', { schema: authRouteSchema, config: { rateLimit: authRateLimit } }, authUser)
+    app.post('/refresh', { schema: refreshTokenRouteSchema, config: { rateLimit: authRateLimit } }, refreshToken)
 
     // Sem verifyJwt de propósito (D-38): o logout age sobre o cookie de refresh, então precisa
     // funcionar mesmo com o access token já expirado — exigir JWT deixaria o usuário sem como sair.

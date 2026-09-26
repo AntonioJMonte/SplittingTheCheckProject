@@ -1,0 +1,5 @@
+$kind: http-request
+name: DELETE /groups/:groupId/leave — sai do grupo
+url: "{{baseUrl}}/groups/{{groupId}}/leave"
+method: DELETE
+order: 5000

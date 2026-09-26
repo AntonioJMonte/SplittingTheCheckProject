@@ -1,0 +1,17 @@
+$kind: http-request
+name: POST /register — cria usuário
+url: "{{baseUrl}}/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Antônio",
+      "email": "antonio@example.com",
+      "password": "123456"
+    }
+auth:
+  type: noauth
+order: 1000

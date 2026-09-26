@@ -1,0 +1,7 @@
+$kind: http-request
+name: GET /docs/yaml — OpenAPI YAML
+url: "{{baseUrl}}/docs/yaml"
+method: GET
+auth:
+  type: noauth
+order: 4000

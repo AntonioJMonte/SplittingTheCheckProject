@@ -1,0 +1,14 @@
+$kind: http-request
+name: PATCH /expenses/:expenseId — atualiza despesa
+url: "{{baseUrl}}/expenses/{{expenseId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "description": "Pizza Hut — jantar",
+      "amount": 95.50
+    }
+order: 3000

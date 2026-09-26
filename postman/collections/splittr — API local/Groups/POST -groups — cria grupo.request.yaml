@@ -1,0 +1,32 @@
+$kind: http-request
+name: POST /groups — cria grupo
+url: "{{baseUrl}}/groups"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "República",
+      "description": "Contas da casa"
+    }
+scripts:
+  - type: afterResponse
+    code: "const body = pm.response.json()\r
+
+      const id = body.group?.id || body.id\r
+
+      if (id) {\r
+
+      \  pm.collectionVariables.set('groupId', id)\r
+
+      \  console.log('groupId salvo:', id)\r
+
+      } else {\r
+
+      \  console.log('id não encontrado:', JSON.stringify(body))\r
+
+      }"
+    language: text/javascript
+order: 1000

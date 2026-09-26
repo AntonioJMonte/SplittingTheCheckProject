@@ -1,0 +1,10 @@
+$kind: http-request
+name: POST /expenses/:expenseId/categorize — recategoriza
+url: "{{baseUrl}}/expenses/{{expenseId}}/categorize"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+order: 5000

@@ -1,0 +1,3 @@
+$kind: collection
+description: As rotas /expenses/:expenseId não têm :groupId; a checagem de membership vive no use case e retorna 403 (D-31).
+order: 5000

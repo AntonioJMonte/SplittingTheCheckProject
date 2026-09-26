@@ -1,0 +1,10 @@
+$kind: http-request
+name: GET /groups/:groupId/expenses — lista despesas
+url: "{{baseUrl}}/groups/{{groupId}}/expenses?page=1&category=Alimentação&from=2026-09-01&to=2026-09-30"
+method: GET
+queryParams:
+  page: "1"
+  category: Alimentação
+  from: 2026-09-01
+  to: 2026-09-30
+order: 2000

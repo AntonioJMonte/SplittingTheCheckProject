@@ -1,0 +1,23 @@
+$kind: http-request
+name: POST /refresh — novo access token
+url: "{{baseUrl}}/refresh"
+method: POST
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: "const body = pm.response.json()\r
+
+      if (body.accessToken) {\r
+
+      \  pm.collectionVariables.set('accessToken', body.accessToken)\r
+
+      \  console.log('accessToken renovado')\r
+
+      } else {\r
+
+      \  console.log('sem accessToken na resposta:', JSON.stringify(body))\r
+
+      }"
+    language: text/javascript
+order: 3000

@@ -1,0 +1,3 @@
+$kind: collection
+description: Requer JWT.
+order: 2000

@@ -1,0 +1,5 @@
+$kind: http-request
+name: GET /groups/:groupId/settlements/compute — transferências mínimas
+url: "{{baseUrl}}/groups/{{groupId}}/settlements/compute"
+method: GET
+order: 2000

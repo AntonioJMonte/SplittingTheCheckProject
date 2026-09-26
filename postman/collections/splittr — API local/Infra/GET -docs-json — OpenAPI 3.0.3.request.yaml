@@ -1,0 +1,7 @@
+$kind: http-request
+name: GET /docs/json — OpenAPI 3.0.3
+url: "{{baseUrl}}/docs/json"
+method: GET
+auth:
+  type: noauth
+order: 3000

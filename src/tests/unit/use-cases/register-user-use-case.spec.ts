@@ -59,4 +59,13 @@ describe('RegisterUserUseCase', () => {
       }),
     ).rejects.toBeInstanceOf(UserAlreadyExistError)
   })
+
+  it('grava a senha com custo de bcrypt 12 (D-69)', async () => {
+    await sut.execute({ name: 'John Doe', email: 'custo@example.com', password: 'password123' })
+
+    const user = await userRepository.findByEmail('custo@example.com')
+
+    // O bcrypt carrega o custo no próprio hash: $2<variante>$<rounds>$<salt+digest>.
+    expect(user?.passwordHash).toMatch(/^\$2[aby]\$12\$/)
+  })
 })

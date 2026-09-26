@@ -1,0 +1,5 @@
+$kind: http-request
+name: GET /groups/:groupId — detalha grupo
+url: "{{baseUrl}}/groups/{{groupId}}"
+method: GET
+order: 3000

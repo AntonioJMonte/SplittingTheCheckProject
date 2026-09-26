@@ -1,0 +1,15 @@
+$kind: http-request
+name: POST /groups/:groupId/settlements — confirma acerto
+url: "{{baseUrl}}/groups/{{groupId}}/settlements"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fromMemberId": "{{memberId}}",
+      "toMemberId": "",
+      "amount": 40.00
+    }
+order: 3000

@@ -1,0 +1,10 @@
+$kind: http-request
+name: PATCH /settlements/:settlementId/acknowledge — credor reconhece
+url: "{{baseUrl}}/settlements/{{settlementId}}/acknowledge"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: "{}"
+order: 4000

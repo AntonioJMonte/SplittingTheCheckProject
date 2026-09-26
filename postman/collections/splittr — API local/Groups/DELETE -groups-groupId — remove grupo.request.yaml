@@ -1,0 +1,5 @@
+$kind: http-request
+name: DELETE /groups/:groupId — remove grupo
+url: "{{baseUrl}}/groups/{{groupId}}"
+method: DELETE
+order: 5000
