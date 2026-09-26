@@ -332,7 +332,7 @@ Ver [seção Status de desenvolvimento](#status-de-desenvolvimento) para o roadm
 
 Estudante de Ciência da Computação na Universidade Federal do Cariri, focado em desenvolvimento backend com TypeScript e Node.js. Este projeto faz parte do meu portfólio profissional, executado com foco em demonstrar domínio de fundamentos sólidos: arquitetura limpa, modelagem de domínio, algoritmos sobre estruturas de dados, concorrência e integração responsável com IA.
 
-- 🔗 [LinkedIn](https://www.linkedin.com/in/ant%C3%B4nio-jos%C3%A9-monteiro-neto-9a3645300/)
+- 🔗 [LinkedIn](https://www.linkedin.com/in/antonioomonteiro)
 - 💻 [GitHub](https://github.com/AntonioJMonte)
 - 📍 Juazeiro do Norte, CE
 
