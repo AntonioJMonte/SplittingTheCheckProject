@@ -8,6 +8,7 @@ import { Money } from '../../../domain/value-objects/money'
 import { SplitMethodType } from '../../../domain/value-objects/split-method'
 import { ExpenseCategory } from '../../../domain/value-objects/expense-category'
 import { ExpenseNotFoundError } from '../../../shared/errors/expense-not-found-error'
+import { ExpenseConcurrentModificationError } from '../../../shared/errors/expense-concurrent-modification-error'
 import { NotGroupMemberError } from '../../../shared/errors/not-group-member-error'
 import { UnauthorizedError } from '../../../shared/errors/unauthorized-error'
 import { MemberNotInGroupError } from '../../../shared/errors/member-not-in-group-error'
@@ -93,7 +94,13 @@ export class UpdateExpenseUseCase {
             pendingCategorization = quickCategory === null
         }
 
-        await this.expenseRepository.update(updatedExpense)
+        // D-82/D-80: a gravação só vale se a versão lida ainda for a atual, e leva junto o
+        // snapshot do estado anterior. Em conflito nada é escrito — nem a revisão.
+        const written = await this.expenseRepository.updateWithRevision(updatedExpense, expense, requestUserId)
+        if (!written) {
+            throw new ExpenseConcurrentModificationError()
+        }
+
         await this.settlementRepository.cancelPendingByGroupId(expense.groupId)
 
         return { expense: updatedExpense, pendingCategorization }

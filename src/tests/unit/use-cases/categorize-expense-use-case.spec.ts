@@ -61,7 +61,8 @@ describe('CategorizeExpenseUseCase', () => {
     const expense = await persistExpense('Rateio diverso')
     categorizer.fullResult = 'Compras'
     categorizer.beforeCategorizeResolves = async () => {
-      await expenseRepository.update(expense.update({ description: 'Cinema' }).withCategory('Lazer'))
+      const editada = expense.update({ description: 'Cinema' }).withCategory('Lazer')
+      await expenseRepository.updateWithRevision(editada, expense, MEMBER_USER_ID)
     }
 
     const { expense: result, updated } = await sut.execute({ expenseId: expense.id, requestUserId: MEMBER_USER_ID })
@@ -105,7 +106,7 @@ describe('CategorizeExpenseUseCase', () => {
   it('should throw ExpenseNotFoundError when the expense is deleted while categorizing', async () => {
     const expense = await persistExpense()
     categorizer.beforeCategorizeResolves = async () => {
-      await expenseRepository.delete(expense.id)
+      await expenseRepository.softDelete(expense.id, MEMBER_USER_ID)
     }
 
     await expect(

@@ -1,6 +1,6 @@
 import z from 'zod'
 import { EXPENSE_CATEGORIES } from '../../../domain/value-objects/expense-category'
-import { badRequest, forbidden, notFound, unauthorized } from './shared.schema'
+import { badRequest, conflict, forbidden, notFound, unauthorized } from './shared.schema'
 
 const expenseCategory = z.enum(EXPENSE_CATEGORIES)
 
@@ -113,7 +113,7 @@ export const listExpensesRouteSchema = {
 
 export const updateExpenseRouteSchema = {
     summary: 'Atualizar despesa',
-    description: 'Edita descrição, valor, divisão ou categoria de uma despesa. Apenas o pagador ou OWNER podem editar. Mudar a descrição sem enviar `category` recategoriza automaticamente.',
+    description: 'Edita descrição, valor, divisão ou categoria de uma despesa. Apenas o pagador ou OWNER podem editar. Mudar a descrição sem enviar `category` recategoriza automaticamente. Usa lock otimista: responde 409 se a despesa foi alterada entre a leitura e a escrita, e cada edição bem-sucedida guarda o estado anterior como revisão.',
     tags: ['Expenses'],
     security: [{ bearerAuth: [] }],
     params: expenseIdParam,
@@ -124,6 +124,7 @@ export const updateExpenseRouteSchema = {
         401: unauthorized,
         403: forbidden,
         404: notFound,
+        409: conflict,
     },
 }
 

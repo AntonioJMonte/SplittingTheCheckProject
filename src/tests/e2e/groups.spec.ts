@@ -6,6 +6,7 @@ const stores = vi.hoisted(() => ({
     groups: [] as any[],
     members: [] as any[],
     expenses: [] as any[],
+    expenseRevisions: [] as any[],
     settlements: [] as any[],
 }))
 
@@ -13,10 +14,15 @@ vi.mock('../../infra/database/prisma/prismaUserRepository', () => ({
     PrismaUserRepository: class {
         async create(user: any) { stores.users.push(user) }
         async findByEmail(email: string) { return stores.users.find((u: any) => u.email.value === email) ?? null }
+        async findByPhone(phone: string) { return stores.users.find((u: any) => u.phone?.value === phone) ?? null }
         async findById(id: string) { return stores.users.find((u: any) => u.id === id) ?? null }
         async updatePixKey(userId: string, pixKey: string | null) {
             const item = stores.users.find((u: any) => u.id === userId)
             if (item) (item as any).pixKey = pixKey ?? undefined
+        }
+        async updatePhone(userId: string, phone: string | null) {
+            const index = stores.users.findIndex((u: any) => u.id === userId)
+            if (index !== -1) stores.users[index] = stores.users[index].withPhone(phone)
         }
     },
 }))
@@ -52,20 +58,27 @@ vi.mock('../../infra/database/prisma/prismaMemberRepository', () => ({
         async addMemberToGroup(member: any) { stores.members.push(member) }
         async findById(id: string) { return stores.members.find((m: any) => m.id === id) ?? null }
         async findByUserAndGroup(userId: string, groupId: string) {
-            return stores.members.find((m: any) => m.userId === userId && m.groupId === groupId) ?? null
+            return stores.members.find((m: any) => m.userId === userId && m.groupId === groupId && !m.deletedBy) ?? null
         }
-        async findByGroupId(groupId: string) { return stores.members.filter((m: any) => m.groupId === groupId) }
+        async findByGroupId(groupId: string) { return stores.members.filter((m: any) => m.groupId === groupId && !m.deletedBy) }
         async findByGroupIdWithUser(groupId: string) {
             return stores.members
-                .filter((m: any) => m.groupId === groupId)
+                .filter((m: any) => m.groupId === groupId && !m.deletedBy)
                 .map((m: any) => {
                     const user = stores.users.find((u: any) => u.id === m.userId)
                     return { id: m.id, role: m.role, joinedAt: m.joinedAt, name: user?.name ?? 'Unknown', email: user?.email?.value ?? '' }
                 })
         }
-        async removeMemberGroup(memberId: string) {
-            const idx = stores.members.findIndex((m: any) => m.id === memberId)
-            if (idx !== -1) stores.members.splice(idx, 1)
+        async removeMemberGroup(memberId: string, removedByUserId: string) {
+            const item = stores.members.find((m: any) => m.id === memberId)
+            if (item) item.deletedBy = removedByUserId
+        }
+        async findRemovedByUserAndGroup(userId: string, groupId: string) {
+            return stores.members.find((m: any) => m.userId === userId && m.groupId === groupId && m.deletedBy) ?? null
+        }
+        async reactivate(memberId: string) {
+            const item = stores.members.find((m: any) => m.id === memberId)
+            if (item) delete item.deletedBy
         }
         async updateRole(memberId: string, role: string) {
             const item = stores.members.find((m: any) => m.id === memberId)
@@ -77,19 +90,35 @@ vi.mock('../../infra/database/prisma/prismaMemberRepository', () => ({
 vi.mock('../../infra/database/prisma/prismaExpenseRepository', () => ({
     PrismaExpenseRepository: class {
         async create(expense: any) { stores.expenses.push(expense) }
-        async findById(id: string) { return stores.expenses.find((e: any) => e.id === id) ?? null }
-        async findByGroupId(groupId: string) { return stores.expenses.filter((e: any) => e.groupId === groupId) }
+        async findById(id: string) { return stores.expenses.find((e: any) => e.id === id && !e.deletedBy) ?? null }
+        async findByGroupId(groupId: string) { return stores.expenses.filter((e: any) => e.groupId === groupId && !e.deletedBy) }
         async findManyByGroup(params: any) {
             const expenses = stores.expenses.filter((e: any) => e.groupId === params.groupId)
             return { expenses, total: expenses.length }
         }
-        async update(expense: any) {
-            const idx = stores.expenses.findIndex((e: any) => e.id === expense.id)
-            if (idx !== -1) stores.expenses[idx] = expense
+        async updateWithRevision(expense: any, previous: any, editedByUserId: string) {
+            // Espelha o CAS + revisão do Prisma (D-80/D-82).
+            const idx = stores.expenses.findIndex((e: any) => e.id === expense.id && !e.deletedBy)
+            if (idx === -1) return false
+            if ((stores.expenses[idx].version ?? 0) !== (previous.version ?? 0)) return false
+
+            stores.expenseRevisions.push({
+                expenseId: previous.id,
+                version: previous.version ?? 0,
+                description: previous.description,
+                amount: previous.amount.toString(),
+                editedBy: editedByUserId,
+            })
+
+            const gravada = Object.create(Object.getPrototypeOf(expense))
+            Object.assign(gravada, expense, { version: (previous.version ?? 0) + 1 })
+            stores.expenses[idx] = gravada
+            return true
         }
-        async delete(id: string) {
-            const idx = stores.expenses.findIndex((e: any) => e.id === id)
-            if (idx !== -1) stores.expenses.splice(idx, 1)
+        async softDelete(id: string, deletedByUserId: string) {
+            // Espelha o soft delete do Prisma (D-72): a despesa fica, marcada com quem removeu.
+            const item = stores.expenses.find((e: any) => e.id === id)
+            if (item) item.deletedBy = deletedByUserId
         }
     },
 }))
@@ -131,6 +160,7 @@ describe('Groups e2e', () => {
         stores.groups.splice(0)
         stores.members.splice(0)
         stores.expenses.splice(0)
+        stores.expenseRevisions.splice(0)
         stores.settlements.splice(0)
     })
 
@@ -281,7 +311,7 @@ describe('Groups e2e', () => {
             method: 'POST',
             url: `/groups/${groupId}/members`,
             headers: { Authorization: `Bearer ${aliceToken}` },
-            payload: { userId: bobUserId },
+            payload: { email: 'bob@example.com' },
         })
 
         expect(res.statusCode).toBe(201)
@@ -306,14 +336,14 @@ describe('Groups e2e', () => {
             method: 'POST',
             url: `/groups/${groupId}/members`,
             headers: { Authorization: `Bearer ${aliceToken}` },
-            payload: { userId: bobUserId },
+            payload: { email: 'bob@example.com' },
         })
 
         const res = await app.inject({
             method: 'POST',
             url: `/groups/${groupId}/members`,
             headers: { Authorization: `Bearer ${aliceToken}` },
-            payload: { userId: bobUserId },
+            payload: { email: 'bob@example.com' },
         })
 
         expect(res.statusCode).toBe(400)
@@ -377,7 +407,7 @@ describe('Groups e2e', () => {
             method: 'POST',
             url: `/groups/${groupId}/members`,
             headers: { Authorization: `Bearer ${aliceToken}` },
-            payload: { userId: bobUserId },
+            payload: { email: 'bob@example.com' },
         })
 
         const res = await app.inject({
@@ -496,7 +526,7 @@ describe('Groups e2e', () => {
             method: 'POST',
             url: `/groups/${groupId}/members`,
             headers: { Authorization: `Bearer ${aliceToken}` },
-            payload: { userId: bobUserId },
+            payload: { email: 'bob@example.com' },
         })
         const bobMemberId = addRes.json().member.id
 
@@ -533,7 +563,7 @@ describe('Groups e2e', () => {
             method: 'POST',
             url: `/groups/${groupId}/members`,
             headers: { Authorization: `Bearer ${aliceToken}` },
-            payload: { userId: bobUserId },
+            payload: { email: 'bob@example.com' },
         })
         const bobMemberId = addRes.json().member.id
 
@@ -572,7 +602,7 @@ describe('Groups e2e', () => {
             method: 'POST',
             url: `/groups/${groupId}/members`,
             headers: { Authorization: `Bearer ${aliceToken}` },
-            payload: { userId: bobUserId },
+            payload: { email: 'bob@example.com' },
         })
         const bobMemberId = addRes.json().member.id
 
@@ -602,7 +632,7 @@ describe('Groups e2e', () => {
             method: 'POST',
             url: `/groups/${groupId}/members`,
             headers: { Authorization: `Bearer ${aliceToken}` },
-            payload: { userId: bobUserId },
+            payload: { email: 'bob@example.com' },
         })
 
         const res = await app.inject({

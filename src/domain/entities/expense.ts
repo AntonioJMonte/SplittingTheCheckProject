@@ -21,6 +21,9 @@ export class Expense {
         public readonly splitMethod: SplitMethodType,
         public readonly occurredAt: Date,
         public readonly category?: ExpenseCategory,
+        // D-82: lock otimista. Quem edita declara a versão que leu; o repositório só grava se
+        // ela ainda for a atual.
+        public readonly version: number = 0,
     ) {}
 
     static create(props: {
@@ -108,6 +111,7 @@ export class Expense {
             newSplitMethod,
             this.occurredAt,
             this.category,
+            this.version,
         )
     }
 
@@ -122,6 +126,7 @@ export class Expense {
             this.splitMethod,
             this.occurredAt,
             category,
+            this.version,
         )
     }
 }

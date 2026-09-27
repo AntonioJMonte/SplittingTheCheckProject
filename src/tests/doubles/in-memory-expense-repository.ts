@@ -6,6 +6,10 @@ import { ExpenseCategory } from '../../domain/value-objects/expense-category'
 
 export class InMemoryExpenseRepository implements ExpenseRepository {
     public items: Expense[] = []
+    // Espelha o soft delete do Prisma (D-72): a despesa continua no array, mas some das leituras.
+    public deleted: Map<string, { deletedBy: string }> = new Map()
+    // D-80: snapshots do estado anterior, na ordem em que as edições aconteceram.
+    public revisions: Array<Record<string, unknown>> = []
     /** userId → memberId mapping; populate in tests to enable share-based view filters */
     public memberIdByUserId: Map<string, string> = new Map()
     /** settlements used by the 'pending' view filter */
@@ -16,11 +20,11 @@ export class InMemoryExpenseRepository implements ExpenseRepository {
     }
 
     async findById(id: string): Promise<Expense | null> {
-        return this.items.find(e => e.id === id) ?? null
+        return this.items.find(e => e.id === id && !this.deleted.has(e.id)) ?? null
     }
 
     async findByGroupId(groupId: string): Promise<Expense[]> {
-        return this.items.filter(e => e.groupId === groupId)
+        return this.items.filter(e => e.groupId === groupId && !this.deleted.has(e.id))
     }
 
     async findManyByGroup(params: FindManyByGroupParams): Promise<FindManyByGroupResult> {
@@ -28,7 +32,7 @@ export class InMemoryExpenseRepository implements ExpenseRepository {
         const limit = params.limit ?? 20
         const memberId = this.memberIdByUserId.get(params.userId)
 
-        let results = this.items.filter(e => e.groupId === params.groupId)
+        let results = this.items.filter(e => e.groupId === params.groupId && !this.deleted.has(e.id))
 
         if (params.category !== undefined) {
             results = results.filter(e => e.category === params.category)
@@ -83,25 +87,53 @@ export class InMemoryExpenseRepository implements ExpenseRepository {
         return { expenses, total }
     }
 
-    async update(data: Expense): Promise<void> {
-        const index = this.items.findIndex(e => e.id === data.id)
-        if (index !== -1) {
-            this.items[index] = data
-        }
+    // Espelha o CAS + revisão do Prisma (D-80/D-82): em conflito nada é gravado, nem a revisão.
+    async updateWithRevision(data: Expense, previous: Expense, editedByUserId: string): Promise<boolean> {
+        const index = this.items.findIndex(e => e.id === data.id && !this.deleted.has(e.id))
+        if (index === -1) return false
+        if (this.items[index].version !== previous.version) return false
+
+        this.revisions.push({
+            expenseId: previous.id,
+            version: previous.version,
+            description: previous.description,
+            amount: previous.amount.toString(),
+            splitMethod: previous.splitMethod,
+            category: previous.category,
+            occurredAt: previous.occurredAt,
+            shares: previous.shares.map(share => ({
+                memberId: share.memberId,
+                amount: share.amount.toString(),
+            })),
+            editedBy: editedByUserId,
+        })
+
+        this.items[index] = new Expense(
+            data.id,
+            data.groupId,
+            data.payerId,
+            data.description,
+            data.amount,
+            data.shares,
+            data.splitMethod,
+            data.occurredAt,
+            data.category,
+            previous.version + 1,
+        )
+        return true
     }
 
     async updateCategory(id: string, category: ExpenseCategory, expectedDescription: string): Promise<boolean> {
-        const index = this.items.findIndex(e => e.id === id && e.description === expectedDescription)
+        const index = this.items.findIndex(e => e.id === id && e.description === expectedDescription && !this.deleted.has(e.id))
         if (index === -1) return false
 
         this.items[index] = this.items[index].withCategory(category)
         return true
     }
 
-    async delete(id: string): Promise<void> {
-        const index = this.items.findIndex(e => e.id === id)
-        if (index !== -1) {
-            this.items.splice(index, 1)
+    async softDelete(id: string, deletedByUserId: string): Promise<void> {
+        if (this.items.some(e => e.id === id)) {
+            this.deleted.set(id, { deletedBy: deletedByUserId })
         }
     }
 }

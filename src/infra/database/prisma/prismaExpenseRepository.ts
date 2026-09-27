@@ -22,6 +22,7 @@ function toExpense(row: {
     occurredAt: Date
     category: string | null
     shares: Array<{ id: string; expenseId: string; memberId: string; amount: { toString(): string } }>
+    version?: number
 }): Expense {
     return new Expense(
         row.id,
@@ -35,11 +36,15 @@ function toExpense(row: {
         row.splitMethod as SplitMethodType,
         row.occurredAt,
         toCategory(row.category),
+        row.version ?? 0,
     )
 }
 
+// D-72: uma despesa excluída permanece na tabela, então toda leitura precisa deste filtro.
+const ACTIVE = { deletedAt: null }
+
 function buildWhereClause(params: FindManyByGroupParams): Prisma.ExpenseWhereInput {
-    const where: Prisma.ExpenseWhereInput = { groupId: params.groupId }
+    const where: Prisma.ExpenseWhereInput = { groupId: params.groupId, ...ACTIVE }
 
     if (params.category !== undefined) {
         where.category = params.category
@@ -109,8 +114,8 @@ export class PrismaExpenseRepository implements ExpenseRepository {
     }
 
     async findById(id: string): Promise<Expense | null> {
-        const row = await prisma.expense.findUnique({
-            where: { id },
+        const row = await prisma.expense.findFirst({
+            where: { id, ...ACTIVE },
             include: { shares: true },
         })
         if (!row) return null
@@ -119,7 +124,7 @@ export class PrismaExpenseRepository implements ExpenseRepository {
 
     async findByGroupId(groupId: string): Promise<Expense[]> {
         const rows = await prisma.expense.findMany({
-            where: { groupId },
+            where: { groupId, ...ACTIVE },
             include: { shares: true },
         })
         return rows.map(toExpense)
@@ -145,17 +150,42 @@ export class PrismaExpenseRepository implements ExpenseRepository {
         return { expenses: rows.map(toExpense), total }
     }
 
-    async update(data: Expense): Promise<void> {
-        await prisma.$transaction(async tx => {
-            await tx.expense.update({
-                where: { id: data.id },
+    async updateWithRevision(data: Expense, previous: Expense, editedByUserId: string): Promise<boolean> {
+        return prisma.$transaction(async tx => {
+            // D-82: CAS. `updateMany` com a versão lida no filtro devolve count 0 quando outra
+            // operação já gravou, e aí nada mais nesta transação acontece.
+            const { count } = await tx.expense.updateMany({
+                where: { id: data.id, version: previous.version, deletedAt: null },
                 data: {
                     description: data.description,
                     amount: data.amount.toString(),
                     splitMethod: data.splitMethod,
                     category: data.category ?? null,
+                    version: { increment: 1 },
                 },
             })
+
+            if (count !== 1) return false
+
+            // D-80/D-81: snapshot completo do estado ANTERIOR, gravado na mesma transação para
+            // não existir edição sem revisão correspondente.
+            await tx.expenseRevision.create({
+                data: {
+                    expenseId: previous.id,
+                    version: previous.version,
+                    description: previous.description,
+                    amount: previous.amount.toString(),
+                    splitMethod: previous.splitMethod,
+                    category: previous.category ?? null,
+                    occurredAt: previous.occurredAt,
+                    shares: previous.shares.map(share => ({
+                        memberId: share.memberId,
+                        amount: share.amount.toString(),
+                    })),
+                    editedBy: editedByUserId,
+                },
+            })
+
             await tx.expenseShare.deleteMany({ where: { expenseId: data.id } })
             for (const share of data.shares) {
                 await tx.expenseShare.create({
@@ -167,18 +197,23 @@ export class PrismaExpenseRepository implements ExpenseRepository {
                     },
                 })
             }
+
+            return true
         })
     }
 
     async updateCategory(id: string, category: ExpenseCategory, expectedDescription: string): Promise<boolean> {
         const { count } = await prisma.expense.updateMany({
-            where: { id, description: expectedDescription },
+            where: { id, description: expectedDescription, ...ACTIVE },
             data: { category },
         })
         return count === 1
     }
 
-    async delete(id: string): Promise<void> {
-        await prisma.expense.delete({ where: { id } })
+    async softDelete(id: string, deletedByUserId: string): Promise<void> {
+        await prisma.expense.update({
+            where: { id },
+            data: { deletedAt: new Date(), deletedBy: deletedByUserId },
+        })
     }
 }
