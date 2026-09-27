@@ -14,13 +14,12 @@ export async function addMember(
     reply: FastifyReply,
 ) {
     const { groupId } = request.params
-    const { userId } = request.body
 
     const useCase = makeAddMemberUseCase()
     const { newMember } = await useCase.execute({
         groupId,
         requestedByUserId: request.user.sub,
-        newUserId: userId,
+        invitee: request.body,
     })
 
     const memberPayload = {

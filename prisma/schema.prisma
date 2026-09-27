@@ -27,6 +27,9 @@ model User {
   id           String    @id @default(uuid())
   name         String
   email        String    @unique
+  // D-75: opcional para não quebrar contas já criadas. O Postgres aceita vários NULL em índice
+  // único, então a unicidade vale só para quem informou. Guardado em E.164 pelo VO Phone (D-76).
+  phone        String?   @unique
   passwordHash String
   pixKey       String?
   createdAt    DateTime  @default(now())
@@ -51,6 +54,10 @@ model Member {
   groupId         String
   role            Role           @default(MEMBER)
   joinedAt        DateTime       @default(now())
+  // D-73: soft delete também aqui, senão o cascade levaria junto os ExpenseShare e as despesas
+  // antigas ficariam sem quem participou delas. D-78: voltar ao grupo reativa este registro.
+  deletedAt       DateTime?
+  deletedBy       String?
   user            User           @relation(fields: [userId], references: [id])
   group           Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   shares          ExpenseShare[]
@@ -58,6 +65,7 @@ model Member {
   settlementsTo   Settlement[]   @relation("SettlementTo")
 
   @@unique([userId, groupId])
+  @@index([groupId, deletedAt])
 }
 
 model Expense {
@@ -71,11 +79,20 @@ model Expense {
   occurredAt  DateTime
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+  // D-72: a exclusão é lógica. O registro fica para o histórico e `deletedBy` responde "quem
+  // apagou?", que é a pergunta de uma disputa real. Toda leitura filtra deletedAt: null.
+  deletedAt   DateTime?
+  deletedBy   String?
+  // D-82: lock otimista igual ao de Settlement. Sem ele, duas edições simultâneas se
+  // sobrescrevem e a revisão registraria um "anterior" que ninguém chegou a ver.
+  version     Int                @default(0)
+  revisions   ExpenseRevision[]
   group       Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   payer       User           @relation("ExpensePayer", fields: [payerId], references: [id])
   shares      ExpenseShare[]
 
   @@index([groupId, occurredAt])
+  @@index([groupId, deletedAt])
 }
 
 model ExpenseShare {
@@ -107,4 +124,27 @@ model Settlement {
   group        Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
   fromMember   Member           @relation("SettlementFrom", fields: [fromMemberId], references: [id])
   toMember     Member           @relation("SettlementTo", fields: [toMemberId], references: [id])
+}
+
+// D-80: uma linha por edição, guardando o estado ANTERIOR da despesa. D-81: snapshot completo
+// em vez de diff — reconstruir "como estava em tal data" vira leitura direta, e uma linha
+// perdida não faz o histórico mentir em silêncio.
+model ExpenseRevision {
+  id          String   @id @default(uuid())
+  expenseId   String
+  // Versão da despesa que este snapshot representa.
+  version     Int
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  splitMethod String
+  category    String?
+  occurredAt  DateTime
+  // Partes no momento do snapshot: [{ memberId, amount }].
+  shares      Json
+  editedBy    String
+  editedAt    DateTime @default(now())
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, version])
+  @@index([expenseId, editedAt])
 }

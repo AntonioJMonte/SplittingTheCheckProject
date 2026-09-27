@@ -7,11 +7,11 @@ import type { registerBody } from '../schemas/auth.schema'
 type RegisterBody = z.infer<typeof registerBody>
 
 export async function registerUser(request: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) {
-    const { name, email, password } = request.body
+    const { name, email, password, phone } = request.body
 
     try {
         const registerUseCase = makeRegisterUseCase()
-        await registerUseCase.execute({ name, email, password })
+        await registerUseCase.execute({ name, email, password, phone })
     } catch (error) {
         if (error instanceof UserAlreadyExistError) {
             return reply.status(409).send({ message: error.message })

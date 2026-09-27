@@ -1,6 +1,8 @@
 import { hash } from "bcryptjs";
 import { User } from "../../../domain/entities/user";
+import { Phone } from "../../../domain/value-objects/phone";
 import { UserAlreadyExistError } from "../../../shared/errors/user-already-exist-error";
+import { PhoneAlreadyInUseError } from "../../../shared/errors/phone-already-in-use-error";
 import { UserRepository } from "../../repositories/users-repository";
 
 // D-69: 6 rounds deixavam o hash ~16x mais barato de quebrar offline. O custo fica em torno
@@ -12,6 +14,7 @@ interface RegisterUseCaseRequest {
     name: string
     email: string
     password: string
+    phone?: string
 }
 
 interface RegisterUseCaseResponse {
@@ -22,14 +25,24 @@ export class RegisterUserUseCase {
 
     constructor(private userRepository: UserRepository) {}
 
-    async execute({ name, email, password }: RegisterUseCaseRequest): Promise<RegisterUseCaseResponse> {
+    async execute({ name, email, password, phone }: RegisterUseCaseRequest): Promise<RegisterUseCaseResponse> {
         const userWithSameEmail = await this.userRepository.findByEmail(email)
         if (userWithSameEmail) {
             throw new UserAlreadyExistError()
         }
 
+        // Normaliza antes de consultar: o `@unique` do banco é sobre o formato E.164, então a
+        // checagem precisa usar a mesma forma canônica para não deixar passar um duplicado.
+        if (phone) {
+            const normalized = new Phone(phone).value
+            const userWithSamePhone = await this.userRepository.findByPhone(normalized)
+            if (userWithSamePhone) {
+                throw new PhoneAlreadyInUseError()
+            }
+        }
+
         const passwordHash = await hash(password, BCRYPT_ROUNDS)
-        const user = User.create({ name, email, passwordHash })
+        const user = User.create({ name, email, passwordHash, phone })
         await this.userRepository.create(user)
 
         return { user }

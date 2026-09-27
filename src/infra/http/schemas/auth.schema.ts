@@ -5,8 +5,9 @@ export const registerBody = z.object({
     name: z.string().min(1).describe('Nome completo do usuário'),
     email: z.email().describe('Email único — será usado para login'),
     password: z.string().min(6).describe('Mínimo de 6 caracteres'),
+    phone: z.string().min(1).optional().describe('Telefone em qualquer formato; normalizado para E.164 (D-76). Permite ser convidado a grupos pelo número'),
 }).meta({
-    example: { name: 'Ana Souza', email: 'ana@example.com', password: 'senha-forte-123' },
+    example: { name: 'Ana Souza', email: 'ana@example.com', password: 'senha-forte-123', phone: '(11) 98765-4321' },
 })
 
 export const authBody = z.object({

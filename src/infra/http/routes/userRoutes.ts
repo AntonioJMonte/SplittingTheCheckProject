@@ -5,10 +5,11 @@ import { authUser } from '../controllers/auth-user-controller'
 import { refreshToken } from '../controllers/refresh-token-controller'
 import { logoutUser } from '../controllers/auth-logout-user-controller'
 import { updatePixKey } from '../controllers/update-pix-key-controller'
+import { updatePhone } from '../controllers/update-phone-controller'
 import { verifyJwt } from '../middlewares/verify-jwt'
 import { authRateLimit } from '../rate-limit'
 import { registerRouteSchema, authRouteSchema, refreshTokenRouteSchema, logoutRouteSchema } from '../schemas/auth.schema'
-import { updatePixKeyRouteSchema } from '../schemas/user.schema'
+import { updatePixKeyRouteSchema, updatePhoneRouteSchema } from '../schemas/user.schema'
 
 export async function userRoutes(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>()
@@ -22,4 +23,5 @@ export async function userRoutes(fastify: FastifyInstance) {
     app.post('/logout', { schema: logoutRouteSchema }, logoutUser)
 
     app.patch('/users/pix-key', { schema: updatePixKeyRouteSchema, preHandler: [verifyJwt] }, updatePixKey)
+    app.patch('/users/phone', { schema: updatePhoneRouteSchema, preHandler: [verifyJwt] }, updatePhone)
 }
