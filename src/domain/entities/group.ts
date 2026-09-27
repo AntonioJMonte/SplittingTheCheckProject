@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { DomainPermissionError } from '../../shared/errors/domain-permission-error'
 import { DomainError } from "../../shared/errors/domain-error";
 import { Member } from "./member";
 
@@ -44,7 +45,7 @@ export class Group {
 
     addMember(requestedBy: Member, newUserId: string): Member {
         if (!requestedBy.isOwner()) {
-            throw new DomainError('Apenas o dono pode adicionar membros')
+            throw new DomainPermissionError('Apenas o dono pode adicionar membros')
         }
 
         const alreadyMember = this._members.some(m => m.userId === newUserId)
@@ -57,9 +58,25 @@ export class Group {
         return member
     }
 
+    // D-78: quem já esteve no grupo volta pelo próprio registro, preservando o id do membro —
+    // é o que mantém os ExpenseShare antigos ligados à pessoa certa.
+    reinstateMember(requestedBy: Member, member: Member): Member {
+        if (!requestedBy.isOwner()) {
+            throw new DomainPermissionError('Apenas o dono pode adicionar membros')
+        }
+
+        const alreadyMember = this._members.some(m => m.userId === member.userId)
+        if (alreadyMember) {
+            throw new DomainError('O usuário já é membro do grupo')
+        }
+
+        this._members.push(member)
+        return member
+    }
+
     removeMember(requestedBy: Member, targetUserId: string): void {
         if (!requestedBy.isOwner()) {
-            throw new DomainError('Apenas o dono pode remover membros')
+            throw new DomainPermissionError('Apenas o dono pode remover membros')
         }
 
         if (requestedBy.userId === targetUserId) {
@@ -76,7 +93,7 @@ export class Group {
 
     update(requestedBy: Member, props: { name?: string; description?: string; currency?: string }): Group {
         if (!requestedBy.isOwner()) {
-            throw new DomainError('Apenas o dono pode atualizar o grupo')
+            throw new DomainPermissionError('Apenas o dono pode atualizar o grupo')
         }
         const newName = props.name?.trim()
         if (newName !== undefined && !newName) {
@@ -126,7 +143,7 @@ export class Group {
     listMembers(requestedBy: Member): ReadonlyArray<Member> {
         const isMember = this._members.some(m => m.userId === requestedBy.userId)
         if (!isMember) {
-            throw new DomainError('Apenas membros do grupo podem visualizar a lista de membros')
+            throw new DomainPermissionError('Apenas membros do grupo podem visualizar a lista de membros')
         }
         return this._members
     }

@@ -46,7 +46,8 @@ export class PrismaGroupRepository implements GroupRepository {
     async findById(id: string): Promise<Group | null> {
         const row = await prisma.group.findUnique({
             where: { id },
-            include: { members: true },
+            // D-73: sem o filtro, um membro removido voltaria ao agregado e bloquearia a readição.
+            include: { members: { where: { deletedAt: null } } },
         })
         if (!row) return null
         return toGroup(row)
@@ -55,7 +56,8 @@ export class PrismaGroupRepository implements GroupRepository {
     async findByUserId(userId: string): Promise<Group[]> {
         const rows = await prisma.group.findMany({
             where: { members: { some: { userId } } },
-            include: { members: true },
+            // D-73: sem o filtro, um membro removido voltaria ao agregado e bloquearia a readição.
+            include: { members: { where: { deletedAt: null } } },
         })
         return rows.map(toGroup)
     }

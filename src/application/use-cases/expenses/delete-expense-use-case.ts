@@ -33,7 +33,7 @@ export class DeleteExpenseUseCase {
             throw new UnauthorizedError()
         }
 
-        await this.expenseRepository.delete(expenseId)
+        await this.expenseRepository.softDelete(expenseId, requestUserId)
         return { groupId: expense.groupId }
     }
 }

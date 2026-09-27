@@ -42,7 +42,10 @@ describe('RemoveMemberUseCase', () => {
 
     await sut.execute({ groupId: group.id, requestedByUserId: owner.userId, targetMemberId: member2.id })
 
-    expect(memberRepository.items.find(m => m.id === member2.id)).toBeUndefined()
+    expect(await memberRepository.findByUserAndGroup(member2.userId, group.id)).toBeNull()
+    expect(await memberRepository.findById(member2.id)).not.toBeNull()
+    // Registra o dono como autor da remoção, não o próprio removido.
+    expect(memberRepository.removed.get(member2.id)).toEqual({ deletedBy: owner.userId })
   })
 
   it('should throw GroupNotFoundError when group does not exist', async () => {

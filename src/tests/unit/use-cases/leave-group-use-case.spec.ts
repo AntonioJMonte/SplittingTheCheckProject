@@ -42,7 +42,10 @@ describe('LeaveGroupUseCase', () => {
 
     await sut.execute({ groupId: group.id, requestingUserId: member2.userId })
 
-    expect(memberRepository.items.find(m => m.id === member2.id)).toBeUndefined()
+    // D-73: o vínculo some das leituras ativas, mas o registro fica — quem saiu se removeu.
+    expect(await memberRepository.findByUserAndGroup(member2.userId, group.id)).toBeNull()
+    expect(await memberRepository.findById(member2.id)).not.toBeNull()
+    expect(memberRepository.removed.get(member2.id)).toEqual({ deletedBy: member2.userId })
   })
 
   it('should delete the group when the last member leaves', async () => {

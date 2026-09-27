@@ -64,7 +64,7 @@ export class LeaveGroupUseCase {
         }
 
         const isLastMember = group.members.length === 1
-        await this.memberRepository.removeMemberGroup(member.id)
+        await this.memberRepository.removeMemberGroup(member.id, member.userId)
 
         if (isLastMember) {
             await this.groupRepository.delete(groupId)

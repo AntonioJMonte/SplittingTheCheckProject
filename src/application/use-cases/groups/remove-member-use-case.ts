@@ -66,6 +66,6 @@ export class RemoveMemberUseCase {
         }
 
         group.removeMember(requestedBy, targetMember.userId)
-        await this.memberRepository.removeMemberGroup(targetMember.id)
+        await this.memberRepository.removeMemberGroup(targetMember.id, requestedBy.userId)
     }
 }

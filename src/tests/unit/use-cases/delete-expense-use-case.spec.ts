@@ -51,7 +51,10 @@ describe('DeleteExpenseUseCase', () => {
 
     await sut.execute({ expenseId: expense.id, requestUserId: PAYER_USER_ID })
 
-    expect(expenseRepository.items).toHaveLength(0)
+    // D-72: some das leituras, mas o registro fica com quem apagou.
+    expect(await expenseRepository.findById(expense.id)).toBeNull()
+    expect(expenseRepository.items).toHaveLength(1)
+    expect(expenseRepository.deleted.get(expense.id)).toEqual({ deletedBy: PAYER_USER_ID })
   })
 
   it('should allow a group owner to delete any expense', async () => {
@@ -64,7 +67,9 @@ describe('DeleteExpenseUseCase', () => {
 
     await sut.execute({ expenseId: expense.id, requestUserId: owner.userId })
 
-    expect(expenseRepository.items).toHaveLength(0)
+    expect(await expenseRepository.findById(expense.id)).toBeNull()
+    // Quem apagou foi o dono, não o pagador — é essa a pergunta que a auditoria responde.
+    expect(expenseRepository.deleted.get(expense.id)).toEqual({ deletedBy: owner.userId })
   })
 
   it('should throw ExpenseNotFoundError when expense does not exist', async () => {
