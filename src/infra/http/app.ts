@@ -9,6 +9,7 @@ import fastifySwaggerUi from '@fastify/swagger-ui'
 import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from '@fastify/type-provider-zod'
 import { ZodError } from 'zod'
 import { DomainError } from '../../shared/errors/domain-error'
+import { DomainPermissionError } from '../../shared/errors/domain-permission-error'
 import { env } from '../env'
 import { logger } from '../logger/logger'
 import { globalRateLimitOptions } from './rate-limit'
@@ -135,6 +136,11 @@ app.setErrorHandler((error, request, reply) => {
     return reply
       .status(400)
       .send({ message: 'Validation error.', issues: error.issues })
+  }
+
+  // D-74: antes do DomainError genérico, senão a negação de permissão sairia como 400.
+  if (error instanceof DomainPermissionError) {
+    return reply.status(403).send({ message: error.message })
   }
 
   if (error instanceof DomainError) {
