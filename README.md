@@ -4,8 +4,8 @@
 
 [![Status](https://img.shields.io/badge/status-em%20desenvolvimento-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6)]()
-[![Node.js](https://img.shields.io/badge/Node.js-20.x-339933)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6)]()
+[![Node.js](https://img.shields.io/badge/Node.js-24.x-339933)]()
 
 ---
 
@@ -28,9 +28,9 @@
 
 ## Sobre o projeto
 
-**Splittr** é uma API backend para grupos compartilharem despesas continuamente — repúblicas, viagens em grupo, casais, eventos — e resolverem automaticamente os acertos financeiros. O sistema calcula saldos em tempo real conforme despesas são lançadas e usa um algoritmo guloso de minimização para sugerir o **menor número possível de transferências** que zera todas as dívidas do grupo.
+**Splittr** é uma API backend para grupos compartilharem despesas continuamente — repúblicas, viagens em grupo, casais, eventos — e resolverem automaticamente os acertos financeiros. O sistema calcula saldos conforme despesas são lançadas e usa um algoritmo guloso de minimização para sugerir o **menor número possível de transferências** que zera todas as dívidas do grupo.
 
-A categorização das despesas é híbrida: regras determinísticas resolvem 80% dos casos (ex: "Uber" → Transporte), e a LLM (Claude Haiku) entra apenas como fallback. Isso reduz custo, latência e dependência da API externa.
+A categorização das despesas é híbrida: uma engine de regras determinísticas resolve os casos com palavras-chave conhecidas (ex: "Uber" → Transporte), e a LLM (Claude Haiku) entra apenas quando as regras e o cache não decidem. Isso reduz custo, latência e dependência da API externa.
 
 Para acertos, o sistema gera **Pix copia-e-cola** no padrão EMV/BR Code do Banco Central, permitindo transferência direta entre os membros.
 
@@ -52,28 +52,44 @@ O Splitwise resolve isso, mas é em inglês, não integra com Pix, não é open 
 
 ### Núcleo
 
-- Autenticação JWT com access e refresh tokens
+- Autenticação JWT com access token de 15 minutos e refresh token em cookie `httpOnly`
+- Logout com revogação do refresh token (blacklist em Redis, fail-closed)
 - Criação e gerenciamento de grupos com papéis (OWNER, MEMBER)
+- Convite de membros por **email ou telefone** — quem convida não precisa conhecer o id interno de ninguém
 - Lançamento de despesas com três métodos de divisão: igualitária, valor fixo e percentual
+- Divisão com distribuição de resto: R$ 100 entre 3 pessoas vira 33,34 / 33,33 / 33,33, sem perder centavo
 - Cálculo automático de saldo de cada membro
 - Algoritmo de minimização do número de transferências para zerar dívidas
-- Histórico imutável e auditável de despesas e acertos
+- Exclusão lógica de despesas e membros: o registro permanece, com data e autor da remoção
 
 ### Tempo real
 
 - Sincronização via WebSocket entre membros conectados ao mesmo grupo
-- Eventos: criação, atualização e exclusão de despesas; recálculo de saldos; confirmação de acertos
+- Autenticação por JWT no handshake e isolamento por sala (um grupo, uma sala)
+- Adapter Redis para escalar horizontalmente sem perder eventos entre instâncias
+- Eventos emitidos: `expense_created`, `expense_updated`, `expense_deleted`, `expense_categorized`, `member_added`, `member_removed`, `settlement_computed`, `settlement_confirmed` e `balances_updated`
 
 ### Inteligência
 
-- Categorização automática de despesas (Alimentação, Transporte, Moradia, Lazer, etc.)
-- Estratégia híbrida: regras determinísticas primeiro, LLM apenas como fallback
-- Cache de categorizações em Redis para reduzir chamadas à API
+- Categorização automática em 8 categorias (Alimentação, Transporte, Moradia, Lazer, Assinaturas, Saúde, Compras, Outros)
+- Cadeia híbrida: **regras determinísticas → cache → LLM → fallback "Outros"**
+- Cerca de 150 palavras-chave cobrem os casos mais comuns sem nenhuma chamada à API
+- Cache de categorizações em Redis, indexado pelo hash da descrição normalizada (TTL de 7 dias)
+- Sem chave da Anthropic configurada, a API continua funcionando: cai direto no fallback
 
 ### Brasil
 
-- Geração de Pix copia-e-cola no padrão EMV/BR Code com CRC16-CCITT
+- Geração de Pix copia-e-cola no padrão EMV/BR Code com CRC16-CCITT implementado do zero
 - Suporte a chave Pix por usuário para receber acertos
+
+### Segurança
+
+- Headers de segurança via `@fastify/helmet`, com CSP restrito para uma API JSON
+- Rate limit com contagem compartilhada em Redis: 100 req/min global, 5/min nas rotas de autenticação e 10/min na recategorização
+- Senhas com bcrypt a 12 rounds
+- CORS por allowlist explícita, configurável por ambiente
+- Redação automática de 7 campos sensíveis nos logs
+- Documentação OpenAPI servida apenas fora de produção
 
 ---
 
@@ -81,24 +97,24 @@ O Splitwise resolve isso, mas é em inglês, não integra com Pix, não é open 
 
 ### Principais
 
-| Tecnologia | Função |
-|---|---|
-| **TypeScript 5+** | Linguagem principal, com strict mode habilitado |
-| **Node.js 20 LTS** | Runtime |
-| **Fastify 4+** | Framework HTTP |
-| **Prisma ORM 5+** | ORM type-safe com migrations declarativas |
-| **PostgreSQL 16** | Banco relacional |
-| **Socket.io** | WebSocket com salas e autenticação |
-| **Redis** | Cache + pub/sub para WebSocket horizontalmente escalável |
-| **Zod** | Validação runtime de payloads |
-| **Vitest** | Test runner |
-| **decimal.js** | Aritmética decimal precisa para valores monetários |
-| **Anthropic SDK** | Cliente Claude API para categorização |
-| **Docker + Docker Compose** | Ambiente reproduzível |
+| Tecnologia | Versão | Função |
+|---|---|---|
+| **TypeScript** | 6.x | Linguagem principal, com strict mode habilitado |
+| **Node.js** | 24 LTS | Runtime |
+| **Fastify** | 5.x | Framework HTTP |
+| **Prisma ORM** | 5.x | ORM type-safe com migrations declarativas |
+| **PostgreSQL** | 16 | Banco relacional |
+| **Socket.io** | 4.x | WebSocket com salas e autenticação |
+| **Redis** | 7 (alpine) | Cache, rate limit e pub/sub para WebSocket escalável |
+| **Zod** | 4.x | Validação runtime de payloads e variáveis de ambiente |
+| **Vitest** | 4.x | Test runner e cobertura |
+| **decimal.js** | 10.x | Aritmética decimal precisa para valores monetários |
+| **Anthropic SDK** | 0.91.x | Cliente Claude API (`claude-haiku-4-5`) para categorização |
+| **Docker + Docker Compose** | — | Ambiente reproduzível |
 
 ### Auxiliares
 
-`bcryptjs` (hash de senha) · `jsonwebtoken` (JWT) · `@fastify/jwt` · `@fastify/cors` · `@fastify/swagger` · `pino` (logger estruturado) · `dayjs` (datas)
+`bcryptjs` (hash de senha) · `jsonwebtoken` + `@fastify/jwt` (JWT) · `@fastify/cookie` · `@fastify/cors` · `@fastify/helmet` · `@fastify/rate-limit` · `@fastify/swagger` · `ioredis` · `pino` (logger estruturado) · `dayjs` (datas)
 
 ---
 
@@ -124,6 +140,8 @@ O projeto segue **Clean Architecture** com fortes influências de **Domain-Drive
 
 **Regra inviolável:** o domínio nunca importa de fora. Use cases podem importar do domínio. A infraestrutura pode importar use cases e domínio. Nada do domínio sabe que existe Fastify, Prisma ou Socket.io.
 
+Os repositórios são **interfaces declaradas em `application`**, com implementações concretas em `infra/database/repositories`. Os use cases dependem da interface, nunca do Prisma.
+
 ### Estrutura de pastas
 
 ```
@@ -134,14 +152,15 @@ src/
 │   ├── database/        # Prisma + implementações de repositório
 │   ├── http/            # Fastify, controllers, middlewares, schemas
 │   ├── websocket/       # Socket.io e handlers
-│   ├── llm/             # Cliente Anthropic + categorizer
+│   ├── llm/             # Cliente Anthropic + categorizer + engine de regras
 │   ├── pix/             # Geração de BR Code + CRC16
+│   ├── cache/           # Cache de saldos, de categorias e blacklist de tokens
+│   ├── redis/           # Clientes Redis
 │   └── env/             # Validação de variáveis de ambiente
 ├── shared/              # Erros base e utilitários
+├── tests/               # unit, e2e, integration, doubles, factories
 └── server.ts            # Bootstrap
 ```
-
-Documentação detalhada da arquitetura no arquivo [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
@@ -152,37 +171,41 @@ Documentação detalhada da arquitetura no arquivo [`docs/ARCHITECTURE.md`](docs
 ### Fase 1 — Fundação e Domínio
 - [x] Setup do projeto (TypeScript, Fastify, Prisma, Postgres em Docker)
 - [x] Schema Prisma (User, Group, Member, Expense, ExpenseShare, Settlement)
-- [x] Entidades de domínio + value objects (Money, Email)
-- [x] Use cases de autenticação (register, login, refresh)
+- [x] Entidades de domínio + value objects (Money, Email, Phone, SplitMethod, ExpenseCategory)
+- [x] Use cases de autenticação (register, login, refresh, logout)
 - [x] Testes unitários da camada de domínio
 
 ### Fase 2 — Grupos e Despesas
-- [ ] Use cases de grupos (criar, listar, adicionar membro)
-- [ ] Use cases de despesas (criar, listar, atualizar, deletar)
-- [ ] Middlewares de autenticação e verificação de membership
-- [ ] Validação de payloads com Zod
-- [ ] Testes de integração HTTP
+- [x] Use cases de grupos (criar, listar, detalhar, atualizar, excluir, membros)
+- [x] Use cases de despesas (criar, listar com filtros e paginação, atualizar, excluir)
+- [x] Middlewares de autenticação e verificação de membership
+- [x] Validação de payloads com Zod
+- [x] Testes end-to-end das rotas HTTP
 
 ### Fase 3 — Algoritmo e Acertos
-- [ ] Domain service `DebtMinimizer` (algoritmo guloso O(n log n))
-- [ ] Cálculo de saldos por membro do grupo
-- [ ] Endpoint de sugestão de acertos
-- [ ] Cobertura completa de casos de borda do algoritmo
+- [x] Domain service `DebtMinimizer` (algoritmo guloso O(n log n))
+- [x] Cálculo de saldos por membro do grupo
+- [x] Endpoint de sugestão de acertos
+- [x] Cobertura de casos de borda do algoritmo (grupo vazio, empates, valores quebrados, 50+ membros)
+- [x] Lock otimista por versão nos acertos, com 409 em caso de conflito
 
 ### Fase 4 — Tempo Real e Pix
-- [ ] WebSocket com autenticação via JWT
-- [ ] Eventos de despesa e saldo em tempo real
-- [ ] Geração de Pix copia-e-cola (BR Code + CRC16-CCITT)
-- [ ] Validação manual com app bancário real
+- [x] WebSocket com autenticação via JWT
+- [x] Eventos de despesa, membro, acerto e saldo em tempo real
+- [x] Geração de Pix copia-e-cola (BR Code + CRC16-CCITT)
+- [x] CRC16 validado contra o vetor canônico da especificação do Banco Central (`0x29B1`)
+- [ ] Validação de ponta a ponta com app bancário real
 
 ### Fase 5 — Categorização via LLM
-- [ ] Engine de regras determinísticas
-- [ ] Integração com Claude Haiku como fallback
-- [ ] Cache de categorizações em Redis
-- [ ] Processamento assíncrono via worker
+- [x] Engine de regras determinísticas
+- [x] Integração com Claude Haiku como fallback
+- [x] Cache de categorizações em Redis
+- [x] Categorização em background, sem bloquear a resposta HTTP
+- [ ] Fila durável para a categorização em background (hoje é em memória e se perde num crash)
 
 ### Fase 6 — Polimento
-- [ ] Documentação OpenAPI completa
+- [x] Documentação OpenAPI completa (26 operações, com exemplos e respostas de erro)
+- [x] Endurecimento de segurança (helmet, rate limit, CORS, bcrypt 12 rounds)
 - [ ] Frontend simples para demonstração
 - [ ] Deploy (backend + banco + frontend)
 - [ ] Vídeo demo
@@ -193,35 +216,46 @@ Documentação detalhada da arquitetura no arquivo [`docs/ARCHITECTURE.md`](docs
 
 ### Pré-requisitos
 
-- Node.js 20+
+- Node.js 24+
 - Docker e Docker Compose
-- Uma chave de API da Anthropic (apenas para a Fase 5+)
+- Uma chave de API da Anthropic (opcional — sem ela a categorização usa apenas regras e cache)
 
-### Passos
+### Opção A — tudo em containers
+
+Sobe Postgres, Redis, aplica as migrations e inicia a API:
 
 ```bash
-# Clonar o repositório
 git clone https://github.com/AntonioJMonte/splittr.git
 cd splittr
 
-# Instalar dependências
-npm install
-
-# Configurar variáveis de ambiente
 cp .env.example .env
 # Edite o .env com seus valores
 
-# Subir Postgres e Redis
 docker compose up -d
+```
 
-# Rodar migrations
-npm run db:migrate
+A API sobe em `http://localhost:3333`.
 
-# Iniciar servidor em modo desenvolvimento
+### Opção B — API local, dependências em container
+
+Use esta opção para desenvolver com hot reload:
+
+```bash
+npm install
+cp .env.example .env
+
+# Sobe apenas as dependências, sem o container da API
+docker compose up -d postgres redis
+
+# Aplica as migrations no banco
+npx prisma migrate deploy
+
 npm run dev
 ```
 
-A API ficará disponível em `http://localhost:3333` e a documentação em `http://localhost:3333/docs`.
+A API sobe em `http://localhost:3333` e a documentação em `http://localhost:3333/docs`.
+
+> O serviço `app` do compose e o `npm run dev` disputam a porta 3333 — use uma opção ou a outra, não as duas ao mesmo tempo.
 
 ### Variáveis de ambiente
 
@@ -231,29 +265,33 @@ Veja [`.env.example`](.env.example) para a lista completa. As principais:
 |---|---|
 | `DATABASE_URL` | Connection string do PostgreSQL |
 | `REDIS_URL` | Connection string do Redis |
-| `JWT_SECRET` | Secret para assinatura de tokens |
-| `JWT_REFRESH_SECRET` | Secret para refresh tokens |
-| `ANTHROPIC_API_KEY` | Chave da API Anthropic (categorização) |
+| `JWT_SECRET` | Secret para assinatura de tokens (mínimo 32 caracteres) |
+| `JWT_REFRESH_SECRET` | Secret para refresh tokens (mínimo 32 caracteres) |
+| `CORS_ORIGIN` | Origens permitidas, separadas por vírgula |
+| `ANTHROPIC_API_KEY` | Chave da API Anthropic (opcional) |
+| `LOG_LEVEL` | Nível do pino (padrão `info`) |
 | `PORT` | Porta do servidor (padrão 3333) |
+
+Todas são validadas por Zod no startup: uma variável ausente ou malformada derruba o processo antes de servir a primeira requisição.
 
 ---
 
 ## Documentação da API
 
-A API é auto-documentada via OpenAPI em `/docs` quando o servidor está rodando — com exemplos de
-corpo, respostas de erro e autenticação `bearerAuth`. Rotas disponíveis:
+A API é auto-documentada via OpenAPI em `/docs` quando o servidor está rodando fora de produção — com exemplos de corpo, respostas de erro e autenticação `bearerAuth`. Rotas disponíveis:
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `POST` | `/register` | Cria a conta |
+| `POST` | `/register` | Cria a conta (nome, email, senha e telefone opcional) |
 | `POST` | `/auth` | Login; devolve access token e cookie `refreshToken` |
 | `POST` | `/refresh` | Renova o access token a partir do cookie |
 | `POST` | `/logout` | Revoga o refresh token (idempotente) |
 | `PATCH` | `/users/pix-key` | Define ou remove a chave Pix |
+| `PATCH` | `/users/phone` | Define ou remove o telefone usado para receber convites |
 | `POST` · `GET` | `/groups` | Cria grupo · lista os grupos do usuário |
 | `GET` · `PATCH` · `DELETE` | `/groups/:groupId` | Detalhes com membros · atualiza · exclui |
 | `GET` | `/groups/:groupId/balances` | Saldo por membro e transferências sugeridas |
-| `POST` · `GET` | `/groups/:groupId/members` | Adiciona membro · lista membros |
+| `POST` · `GET` | `/groups/:groupId/members` | Convida por email ou telefone · lista membros |
 | `DELETE` | `/groups/:groupId/members/:memberId` | Remove membro (requer OWNER) |
 | `PATCH` | `/groups/:groupId/members/:memberId/role` | Promove ou rebaixa um membro |
 | `DELETE` | `/groups/:groupId/leave` | Sai do grupo |
@@ -265,12 +303,14 @@ corpo, respostas de erro e autenticação `bearerAuth`. Rotas disponíveis:
 | `PATCH` | `/settlements/:settlementId/acknowledge` | Credor confirma o recebimento |
 | `GET` | `/health` | Estado de Postgres e Redis; 503 se alguma cair |
 
+Os filtros de `GET /groups/:groupId/expenses` são `view` (`all`, `involved`, `paid`, `pending`), `category`, `startDate`, `endDate`, `minAmount`, `maxAmount`, `page` e `limit`.
+
 As rotas de autenticação não usam o prefixo `/auth/` do documento original do desafio
 (`/register` em vez de `/auth/register`, e assim por diante), e o registro de acertos é
 `POST /groups/:groupId/settlements` em vez de `POST /settlements` — assim a rota carrega o
 `:groupId` que o middleware de associação precisa. Os nomes acima são os que valem.
 
-WebSocket disponível em `ws://localhost:3333` com autenticação via JWT no handshake.
+WebSocket disponível em `ws://localhost:3333`, com o token JWT em `handshake.auth.token`.
 
 ---
 
@@ -294,22 +334,40 @@ O problema geral de minimização de dívidas é NP-difícil. A heurística gulo
 
 ### Por que regras antes de LLM na categorização?
 
-Custo, latência e previsibilidade. 80% das despesas têm palavras-chave óbvias — não preciso de LLM para classificar "Pizza Hut". A LLM entra apenas quando a regra não decide, reduzindo custo em cerca de 80% e melhorando latência média.
+Custo, latência e previsibilidade. Descrições como "Pizza Hut", "Uber" ou "Netflix" não precisam de um modelo para serem classificadas — uma tabela de palavras-chave resolve em microssegundos e sem custo. A LLM entra apenas quando regra e cache não decidem, e o resultado dela é cacheado por 7 dias, de modo que a mesma descrição não é cobrada duas vezes.
+
+### Por que exclusão lógica em despesas e membros?
+
+Um grupo que divide contas precisa poder responder "quem apagou a despesa do churrasco?" seis meses depois. Exclusão física apaga a pergunta junto com o dado. Despesas e membros carregam `deletedAt` e `deletedBy`: somem de toda leitura, mas continuam no banco. Em membros isso também evita que o cascade leve embora os `ExpenseShare`, o que deixaria despesas antigas sem saber quem participou delas.
+
+### Por que o cache falha fechado e o rate limit falha aberto?
+
+São riscos opostos. Se o Redis cair e a blacklist de refresh tokens ficar indisponível, não há como provar que um token **não** foi revogado — então ele é tratado como revogado, e `/refresh` responde 401. Já no rate limit, perder a contagem por alguns minutos é preferível a recusar todo mundo: ali a falha não bloqueia.
 
 ---
 
 ## Testes
 
 ```bash
-npm test              # Roda todos os testes
-npm run test:watch    # Modo watch
-npm run test:coverage # Com relatório de cobertura
+npm test                  # Suíte completa (unit + e2e)
+npm run test:watch        # Modo watch
+npm run test:coverage     # Com relatório de cobertura
+npm run test:integration  # Testes contra Postgres real (requer o compose de pé)
 ```
 
-**Metas de cobertura:**
-- Domínio (entidades, services): ≥ 80%
-- Use cases: ≥ 70%
-- Algoritmo `DebtMinimizer`: 100% com casos de borda explícitos (grupo vazio, empates, valores quebrados, 50+ membros)
+**Estado atual:** 436 testes em 65 arquivos, 85% de statements no total.
+
+**Thresholds que falham o build** (configurados em `vitest.config.ts`):
+
+| Escopo | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| `src/domain` | 90% | 85% | 94% | 90% |
+| `src/application` | 95% | 90% | 93% | 95% |
+| Global | 84% | 71% | 78% | 84% |
+
+O `DebtMinimizer` tem 13 casos de teste cobrindo grupo vazio, saldos zerados, empates, valores que não dividem igualmente, grupos com mais de 50 membros e a garantia de não mutar a entrada.
+
+A API da Anthropic **nunca** é chamada nos testes — o categorizador é sempre injetado como dublê.
 
 ---
 
@@ -318,6 +376,7 @@ npm run test:coverage # Com relatório de cobertura
 Ver [seção Status de desenvolvimento](#status-de-desenvolvimento) para o roadmap detalhado em fases.
 
 **Pós-MVP (futuro):**
+- Trilha de auditoria de edições (hoje só exclusões deixam rastro)
 - OCR de notas fiscais via Claude Vision (extração automática de despesas a partir de foto)
 - Frontend mobile com React Native
 - Notificações push para acertos pendentes
