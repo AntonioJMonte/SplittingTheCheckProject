@@ -55,7 +55,9 @@ export class PrismaGroupRepository implements GroupRepository {
 
     async findByUserId(userId: string): Promise<Group[]> {
         const rows = await prisma.group.findMany({
-            where: { members: { some: { userId } } },
+            // D-73 vale aqui também: sem `deletedAt: null`, quem saiu continuaria vendo o grupo na
+            // listagem e levaria 403 ao abri-lo.
+            where: { members: { some: { userId, deletedAt: null } } },
             // D-73: sem o filtro, um membro removido voltaria ao agregado e bloquearia a readição.
             include: { members: { where: { deletedAt: null } } },
         })
