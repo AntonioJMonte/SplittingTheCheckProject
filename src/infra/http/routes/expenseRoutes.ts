@@ -17,7 +17,7 @@ import {
 export async function expenseRoutes(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>()
 
-    app.addHook('preHandler', verifyJwt)
+    app.addHook('preValidation', verifyJwt)
 
     app.patch('/expenses/:expenseId', { schema: updateExpenseRouteSchema }, updateExpense)
     app.delete('/expenses/:expenseId', { schema: deleteExpenseRouteSchema }, deleteExpense)

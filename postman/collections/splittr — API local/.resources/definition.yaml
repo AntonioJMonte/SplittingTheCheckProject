@@ -4,7 +4,7 @@ description: |-
 
   Variáveis: baseUrl, accessToken, groupId, memberId, expenseId, settlementId.
 
-  O accessToken é salvo automaticamente pelos scripts de POST /register e POST /auth. O refreshToken vive em cookie httpOnly gerenciado pelo Postman (funciona no app desktop).
+  O accessToken é salvo automaticamente pelos scripts de POST /auth e POST /refresh, e zerado pelo de POST /logout. O refreshToken vive em cookie httpOnly gerenciado pelo Postman (funciona no app desktop).
 
   Os corpos de requisição são exemplos e devem ser conferidos contra http://localhost:3333/docs/json.
 variables:

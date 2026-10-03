@@ -4,4 +4,13 @@ url: "{{baseUrl}}/logout"
 method: POST
 auth:
   type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      // O access token segue válido até expirar (D-36); sem zerar, as rotas parecem funcionar após o logout.
+      if (pm.response.code === 204) {
+        pm.collectionVariables.set('accessToken', '')
+        console.log('accessToken removido')
+      }
+    language: text/javascript
 order: 4000

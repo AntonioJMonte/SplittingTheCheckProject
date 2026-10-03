@@ -1,0 +1,13 @@
+$kind: http-request
+name: PATCH /users/phone — atualiza telefone
+url: "{{baseUrl}}/users/phone"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "phone": "(11) 98765-4321"
+    }
+order: 2000

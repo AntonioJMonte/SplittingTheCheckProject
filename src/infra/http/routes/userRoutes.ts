@@ -22,6 +22,6 @@ export async function userRoutes(fastify: FastifyInstance) {
     // funcionar mesmo com o access token já expirado — exigir JWT deixaria o usuário sem como sair.
     app.post('/logout', { schema: logoutRouteSchema }, logoutUser)
 
-    app.patch('/users/pix-key', { schema: updatePixKeyRouteSchema, preHandler: [verifyJwt] }, updatePixKey)
-    app.patch('/users/phone', { schema: updatePhoneRouteSchema, preHandler: [verifyJwt] }, updatePhone)
+    app.patch('/users/pix-key', { schema: updatePixKeyRouteSchema, preValidation: [verifyJwt] }, updatePixKey)
+    app.patch('/users/phone', { schema: updatePhoneRouteSchema, preValidation: [verifyJwt] }, updatePhone)
 }

@@ -38,7 +38,7 @@ import { computeSettlementsRouteSchema, confirmSettlementRouteSchema } from '../
 export async function groupRoutes(fastify: FastifyInstance) {
     const app = fastify.withTypeProvider<ZodTypeProvider>()
 
-    app.addHook('preHandler', verifyJwt)
+    app.addHook('preValidation', verifyJwt)
 
     app.post('/groups', { schema: createGroupRouteSchema }, createGroup)
     app.get('/groups', { schema: listGroupsRouteSchema }, listGroups)
