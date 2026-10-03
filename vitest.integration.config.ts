@@ -14,5 +14,21 @@ export default defineConfig({
       JWT_REFRESH_SECRET: 'test-refresh-secret-at-least-32-chars!!',
       ANTHROPIC_API_KEY: '',
     },
+    // D-86: a camada de banco só é exercitada aqui, então ela tem relatório e catraca próprios.
+    // O relatório principal continua mostrando os repositórios em ~0%, porque lá eles são mockados.
+    coverage: {
+      enabled: true,
+      provider: 'v8',
+      include: ['src/infra/database/**/*.ts'],
+      reportsDirectory: 'coverage/integration',
+      reporter: ['text', 'html'],
+      // Calibrados logo abaixo do medido em 03/10 (97,58 · 89,47 · 100 · 100). Baixar exige aprovação.
+      thresholds: {
+        statements: 96,
+        branches: 87,
+        functions: 98,
+        lines: 98,
+      },
+    },
   },
 })

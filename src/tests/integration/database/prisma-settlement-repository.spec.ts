@@ -106,4 +106,65 @@ describe('PrismaSettlementRepository (Postgres real)', () => {
     const sameId = new Settlement(settlement.id, groupId, fromMemberId, toMemberId, new Money('5.00'))
     await expect(repository.create(sameId)).rejects.toThrow()
   })
+
+  it('should round-trip a settlement with its exact amount and Pix payload', async () => {
+    const settlement = Settlement.create({ groupId, fromMemberId, toMemberId, amount: new Money('33.33'), pixCopyPaste: '000201...' })
+    await repository.create(settlement)
+
+    const found = await repository.findById(settlement.id)
+
+    expect(found).toMatchObject({ status: 'PENDING', version: 0, pixCopyPaste: '000201...', confirmedAt: undefined })
+    expect(found?.amount.toString()).toBe('33.33')
+    expect(await repository.findById(randomUUID())).toBeNull()
+  })
+
+  it('should stamp confirmedAt only when confirming, not when cancelling', async () => {
+    const confirmed = makePending()
+    await repository.create(confirmed)
+    await repository.updateStatus(confirmed.id, 'CONFIRMED', 0)
+    const cancelled = Settlement.create({ groupId, fromMemberId: toMemberId, toMemberId: fromMemberId, amount: new Money('5.00') })
+    await repository.create(cancelled)
+    await repository.updateStatus(cancelled.id, 'CANCELLED', 0)
+
+    expect((await repository.findById(confirmed.id))?.confirmedAt).toBeInstanceOf(Date)
+    expect((await repository.findById(cancelled.id))?.confirmedAt).toBeUndefined()
+  })
+
+  it('should find the pending settlement of a pair only in its direction', async () => {
+    const settlement = makePending()
+    await repository.create(settlement)
+
+    expect((await repository.findPendingBetweenMembers(fromMemberId, toMemberId))?.id).toBe(settlement.id)
+    expect(await repository.findPendingBetweenMembers(toMemberId, fromMemberId)).toBeNull()
+
+    await repository.updateStatus(settlement.id, 'CONFIRMED', 0)
+    expect(await repository.findPendingBetweenMembers(fromMemberId, toMemberId)).toBeNull()
+  })
+
+  it('should list confirmed settlements of a group and of a member on either side, ignoring other groups', async () => {
+    const paid = makePending('10.00')
+    const received = Settlement.create({ groupId, fromMemberId: toMemberId, toMemberId: fromMemberId, amount: new Money('4.00') })
+    const stillPending = makePending('1.00')
+    for (const s of [paid, received]) {
+      await repository.create(s)
+      await repository.updateStatus(s.id, 'CONFIRMED', 0)
+    }
+    await repository.create(stillPending)
+
+    const otherGroup = await prisma.group.create({ data: { name: 'Outro' } })
+    const [otherFrom, otherTo] = await Promise.all((['carla', 'davi']).map(async name => {
+      const user = await prisma.user.create({ data: { name, email: `${name}-${randomUUID()}@test.com`, passwordHash: 'hash' } })
+      return prisma.member.create({ data: { userId: user.id, groupId: otherGroup.id } })
+    }))
+    await prisma.settlement.create({
+      data: { groupId: otherGroup.id, fromMemberId: otherFrom.id, toMemberId: otherTo.id, amount: '7.00', status: 'CONFIRMED' },
+    })
+
+    const ofGroup = await repository.findConfirmedByGroup(groupId)
+    const ofMember = await repository.findConfirmedByMemberAndGroup(fromMemberId, groupId)
+
+    expect(ofGroup.map(s => s.id).sort()).toEqual([paid.id, received.id].sort())
+    expect(ofMember.map(s => s.id).sort()).toEqual([paid.id, received.id].sort())
+    expect(await repository.findConfirmedByMemberAndGroup(fromMemberId, otherGroup.id)).toEqual([])
+  })
 })
