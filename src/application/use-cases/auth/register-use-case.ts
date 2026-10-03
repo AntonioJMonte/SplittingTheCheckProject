@@ -23,7 +23,12 @@ interface RegisterUseCaseResponse {
 
 export class RegisterUserUseCase {
 
-    constructor(private userRepository: UserRepository) {}
+    // D-85: o custo é injetável só para os testes não pagarem 12 rounds por usuário registrado.
+    // Quem não passa nada recebe o valor de produção.
+    constructor(
+        private userRepository: UserRepository,
+        private bcryptRounds: number = BCRYPT_ROUNDS,
+    ) {}
 
     async execute({ name, email, password, phone }: RegisterUseCaseRequest): Promise<RegisterUseCaseResponse> {
         const userWithSameEmail = await this.userRepository.findByEmail(email)
@@ -41,7 +46,7 @@ export class RegisterUserUseCase {
             }
         }
 
-        const passwordHash = await hash(password, BCRYPT_ROUNDS)
+        const passwordHash = await hash(password, this.bcryptRounds)
         const user = User.create({ name, email, passwordHash, phone })
         await this.userRepository.create(user)
 

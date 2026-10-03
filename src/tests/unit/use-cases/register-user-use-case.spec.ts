@@ -68,4 +68,12 @@ describe('RegisterUserUseCase', () => {
     // O bcrypt carrega o custo no próprio hash: $2<variante>$<rounds>$<salt+digest>.
     expect(user?.passwordHash).toMatch(/^\$2[aby]\$12\$/)
   })
+
+  it('usa o custo injetado quando recebe um (D-85)', async () => {
+    const cheap = new RegisterUserUseCase(userRepository, 4)
+
+    const { user } = await cheap.execute({ name: 'John Doe', email: 'barato@example.com', password: 'password123' })
+
+    expect(user.passwordHash).toMatch(/^\$2[aby]\$04\$/)
+  })
 })
